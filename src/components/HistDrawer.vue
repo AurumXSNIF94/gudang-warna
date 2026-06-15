@@ -34,13 +34,9 @@
             <span class="d-block" style="font-size: 0.65rem; font-weight: 800; color: var(--text-muted);">TOTAL IN</span>
             <span class="fw-bold text-success" style="font-size: 0.9rem;">+{{ fmt(totalMasukBulanIni) }}</span>
           </div>
-          <div class="text-center flex-fill border-end border-light">
+          <div class="text-center flex-fill">
             <span class="d-block" style="font-size: 0.65rem; font-weight: 800; color: var(--text-muted);">TOTAL OUT</span>
             <span class="fw-bold text-danger" style="font-size: 0.9rem;">-{{ fmt(totalKeluarBulanIni) }}</span>
-          </div>
-          <div class="text-center flex-fill">
-            <span class="d-block" style="font-size: 0.65rem; font-weight: 800; color: var(--text-muted);">SELISIH</span>
-            <span class="fw-bold text-primary" style="font-size: 0.9rem;">{{ fmt(totalMasukBulanIni - totalKeluarBulanIni) }}</span>
           </div>
         </div>
       </div>
@@ -119,7 +115,6 @@ const activeItem = computed(() => dbStok.value.find(x => x.idUnik === activeHist
 const months = computed(() => Object.keys(allLogs.value).sort((a, b) => b.localeCompare(a)))
 const currentLogs = computed(() => (allLogs.value[activeMonth.value] || []).slice().reverse())
 
-// LOGIKA BARU: Menghitung Total Masuk & Keluar di Bulan Aktif
 const totalMasukBulanIni = computed(() => {
   return currentLogs.value
     .filter(r => r.tipe === 'MASUK')

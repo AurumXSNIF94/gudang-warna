@@ -1,5 +1,5 @@
 <template>
-  <div class="modal fade show d-block backdrop-blur" tabindex="-1">
+  <div class="modal fade show d-block backdrop-blur" tabindex="-1" style="z-index: 1080;">
     <div class="modal-dialog modal-dialog-centered">
       <div class="modal-content modern-modal border-0 shadow-lg">
         
@@ -93,7 +93,6 @@ const simpan = async () => {
   if (!trx) return
   saving.value = true
   
-  // PERBAIKAN: Membaca fallback idUnik dari HistDrawer jika parentId kosong
   const itemID = trx.parentId || trx.idUnik 
   
   try {
@@ -105,7 +104,6 @@ const simpan = async () => {
       keterangan: keterangan.value.toUpperCase()
     })
     
-    // Sinkronisasi data utama menggunakan fitur Audit Global Harmonis
     await jalankanAudit()
     
     window.Swal.fire({ icon: 'success', title: 'Tersimpan!', timer: 1500, showConfirmButton: false })
@@ -131,13 +129,11 @@ const hapus = async () => {
   
   saving.value = true
   
-  // PERBAIKAN: Membaca fallback idUnik dari HistDrawer jika parentId kosong
   const itemID = trx.parentId || trx.idUnik 
   
   try {
     await remove(dbRef(db, `riwayat_transaksi/${itemID}/${trx.trxId}`))
     
-    // Sinkronisasi data utama menggunakan fitur Audit Global Harmonis
     await jalankanAudit()
     
     window.Swal.fire({ icon: 'success', title: 'Dihapus!', timer: 1500, showConfirmButton: false })

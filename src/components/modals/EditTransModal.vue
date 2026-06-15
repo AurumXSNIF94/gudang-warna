@@ -92,33 +92,61 @@ const simpan = async () => {
   const trx = activeEditTrans.value
   if (!trx) return
   saving.value = true
+  
+  // PERBAIKAN: Membaca fallback idUnik dari HistDrawer jika parentId kosong
+  const itemID = trx.parentId || trx.idUnik 
+  
   try {
-    await update(dbRef(db, `riwayat_transaksi/${trx.parentId}/${trx.trxId}`), {
+    await update(dbRef(db, `riwayat_transaksi/${itemID}/${trx.trxId}`), {
       tanggal: new Date(tanggal.value).toISOString(),
       tipe: tipe.value,
       qty: parseFloat(qty.value) || 0,
       blok: blok.value,
       keterangan: keterangan.value.toUpperCase()
     })
+    
+    // Sinkronisasi data utama menggunakan fitur Audit Global Harmonis
     await jalankanAudit()
+    
     window.Swal.fire({ icon: 'success', title: 'Tersimpan!', timer: 1500, showConfirmButton: false })
     emit('saved'); emit('close')
-  } catch(e) { window.Swal.fire('Error', e.message, 'error') } finally { saving.value = false }
+  } catch(e) { 
+    window.Swal.fire('Error', e.message, 'error') 
+  } finally { 
+    saving.value = false 
+  }
 }
 
 const hapus = async () => {
   const trx = activeEditTrans.value
   if (!trx) return
-  const result = await window.Swal.fire({ title: 'Hapus Transaksi?', text: 'Data akan hilang permanen!', icon: 'warning', showCancelButton: true, confirmButtonColor: '#dc2626' })
+  const result = await window.Swal.fire({ 
+    title: 'Hapus Transaksi?', 
+    text: 'Data akan hilang permanen!', 
+    icon: 'warning', 
+    showCancelButton: true, 
+    confirmButtonColor: '#dc2626' 
+  })
   if (!result.isConfirmed) return
   
   saving.value = true
+  
+  // PERBAIKAN: Membaca fallback idUnik dari HistDrawer jika parentId kosong
+  const itemID = trx.parentId || trx.idUnik 
+  
   try {
-    await remove(dbRef(db, `riwayat_transaksi/${trx.parentId}/${trx.trxId}`))
+    await remove(dbRef(db, `riwayat_transaksi/${itemID}/${trx.trxId}`))
+    
+    // Sinkronisasi data utama menggunakan fitur Audit Global Harmonis
     await jalankanAudit()
+    
     window.Swal.fire({ icon: 'success', title: 'Dihapus!', timer: 1500, showConfirmButton: false })
     emit('saved'); emit('close')
-  } catch(e) { window.Swal.fire('Error', e.message, 'error') } finally { saving.value = false }
+  } catch(e) { 
+    window.Swal.fire('Error', e.message, 'error') 
+  } finally { 
+    saving.value = false 
+  }
 }
 </script>
 

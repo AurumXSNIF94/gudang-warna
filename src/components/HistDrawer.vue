@@ -28,6 +28,23 @@
         </div>
       </div>
 
+      <div v-if="currentLogs.length" class="px-3 pt-2">
+        <div class="summary-box d-flex justify-content-between align-items-center shadow-sm">
+          <div class="text-center flex-fill border-end border-light">
+            <span class="d-block" style="font-size: 0.65rem; font-weight: 800; color: var(--text-muted);">TOTAL IN</span>
+            <span class="fw-bold text-success" style="font-size: 0.9rem;">+{{ fmt(totalMasukBulanIni) }}</span>
+          </div>
+          <div class="text-center flex-fill border-end border-light">
+            <span class="d-block" style="font-size: 0.65rem; font-weight: 800; color: var(--text-muted);">TOTAL OUT</span>
+            <span class="fw-bold text-danger" style="font-size: 0.9rem;">-{{ fmt(totalKeluarBulanIni) }}</span>
+          </div>
+          <div class="text-center flex-fill">
+            <span class="d-block" style="font-size: 0.65rem; font-weight: 800; color: var(--text-muted);">SELISIH</span>
+            <span class="fw-bold text-primary" style="font-size: 0.9rem;">{{ fmt(totalMasukBulanIni - totalKeluarBulanIni) }}</span>
+          </div>
+        </div>
+      </div>
+
       <div class="hist-list">
         <div v-if="loadingHist" class="text-center py-5">
           <div class="spinner-border text-primary"></div>
@@ -84,8 +101,6 @@ import { ref as dbRef, onValue } from 'firebase/database'
 import { db } from '../firebase'
 import { dbStok } from '../composables/useStok'
 import { activeHistId } from '../composables/useHist'
-
-// Import role dan activeEditTrans
 import { currentRole } from '../composables/useAuth'
 import { activeEditTrans } from '../composables/useEditTrans'
 
@@ -103,6 +118,19 @@ const isAdmin = computed(() => currentRole.value === 'admin')
 const activeItem = computed(() => dbStok.value.find(x => x.idUnik === activeHistId.value))
 const months = computed(() => Object.keys(allLogs.value).sort((a, b) => b.localeCompare(a)))
 const currentLogs = computed(() => (allLogs.value[activeMonth.value] || []).slice().reverse())
+
+// LOGIKA BARU: Menghitung Total Masuk & Keluar di Bulan Aktif
+const totalMasukBulanIni = computed(() => {
+  return currentLogs.value
+    .filter(r => r.tipe === 'MASUK')
+    .reduce((sum, r) => sum + (parseFloat(r.qty) || 0), 0)
+})
+
+const totalKeluarBulanIni = computed(() => {
+  return currentLogs.value
+    .filter(r => r.tipe === 'KELUAR')
+    .reduce((sum, r) => sum + (parseFloat(r.qty) || 0), 0)
+})
 
 const formatMonth = m => { const [y, mo] = m.split('-'); return BULAN[parseInt(mo) - 1] + ' ' + y }
 const formatDate = iso => new Date(iso).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })
@@ -133,15 +161,11 @@ const loadHistoryData = (id) => {
   })
 }
 
-// Fitur Buka Edit
 const bukaEdit = (log) => {
-  // Menggabungkan data transaksi dan ID Item agar EditTransModal tahu barang apa yang diedit
   activeEditTrans.value = { ...log, idUnik: activeItem.value.idUnik, item: activeItem.value }
-  // Opsi: Anda bisa menutup drawer history jika mau, atau membiarkannya terbuka di background
-  // emit('close') 
+  emit('close') 
 }
 
-// Ekspos reloadHist agar bisa dipanggil oleh App.vue saat fitur Edit Selesai Disimpan
 const reloadHist = () => {
   if (activeHistId.value) loadHistoryData(activeHistId.value)
 }
@@ -172,6 +196,12 @@ onUnmounted(() => { if (unsubscribe) unsubscribe() })
 .chips-scroll { display: flex; gap: 8px; overflow-x: auto; }
 .hist-chip { padding: 6px 14px; border-radius: 10px; font-size: 0.75rem; font-weight: 700; cursor: pointer; background: var(--bg-card); color: var(--text-muted); border: 1px solid var(--border-color); }
 .hist-chip.active { background: #4f46e5; color: white; border-color: #4f46e5; }
+
+/* SUMMARY BOX (KOTAK TOTAL IN & OUT) */
+.summary-box {
+  background: var(--bg-main); border: 1px solid var(--border-color); border-radius: 12px; padding: 10px 0;
+}
+.border-light { border-color: var(--border-color) !important; }
 
 /* FEED LIST */
 .hist-list { flex: 1; overflow-y: auto; padding: 20px 15px; }

@@ -28,19 +28,6 @@
         </div>
       </div>
 
-      <div v-if="currentLogs.length" class="px-3 pt-2">
-        <div class="summary-box d-flex justify-content-between align-items-center shadow-sm">
-          <div class="text-center flex-fill border-end border-light">
-            <span class="d-block" style="font-size: 0.65rem; font-weight: 800; color: var(--text-muted);">TOTAL IN</span>
-            <span class="fw-bold text-success" style="font-size: 0.9rem;">+{{ fmt(totalMasukBulanIni) }}</span>
-          </div>
-          <div class="text-center flex-fill">
-            <span class="d-block" style="font-size: 0.65rem; font-weight: 800; color: var(--text-muted);">TOTAL OUT</span>
-            <span class="fw-bold text-danger" style="font-size: 0.9rem;">-{{ fmt(totalKeluarBulanIni) }}</span>
-          </div>
-        </div>
-      </div>
-
       <div class="hist-list">
         <div v-if="loadingHist" class="text-center py-5">
           <div class="spinner-border text-primary"></div>
@@ -57,6 +44,7 @@
               <div class="d-flex justify-content-between align-items-center mb-1">
                 <div class="d-flex align-items-center gap-2">
                   <span class="badge-soft" :class="`badge-soft-${r.tipe.toLowerCase()}`">{{ r.tipe }}</span>
+                  
                   <button v-if="isAdmin" 
                           class="btn btn-sm btn-icon-edit" 
                           title="Edit Transaksi Ini"
@@ -100,7 +88,9 @@ import { currentRole } from '../composables/useAuth'
 import { activeEditTrans } from '../composables/useEditTrans'
 
 const emit = defineEmits(['close'])
+
 const fmt = (n) => Number(n || 0).toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+
 const BULAN = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des']
 const allLogs = ref({}); 
 const activeMonth = ref(''); 
@@ -110,10 +100,7 @@ let unsubscribe = null
 const isAdmin = computed(() => currentRole.value === 'admin')
 const activeItem = computed(() => dbStok.value.find(x => x.idUnik === activeHistId.value))
 const months = computed(() => Object.keys(allLogs.value).sort((a, b) => b.localeCompare(a)))
-const currentLogs = computed(() => (allLogs.value[activeMonth.value] || []))
-
-const totalMasukBulanIni = computed(() => currentLogs.value.filter(r => r.tipe === 'MASUK').reduce((sum, r) => sum + (parseFloat(r.qty) || 0), 0))
-const totalKeluarBulanIni = computed(() => currentLogs.value.filter(r => r.tipe === 'KELUAR').reduce((sum, r) => sum + (parseFloat(r.qty) || 0), 0))
+const currentLogs = computed(() => (allLogs.value[activeMonth.value] || []).slice().reverse())
 
 const formatMonth = m => { const [y, mo] = m.split('-'); return BULAN[parseInt(mo) - 1] + ' ' + y }
 const formatDate = iso => new Date(iso).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })
@@ -129,40 +116,14 @@ const loadHistoryData = (id) => {
   
   unsubscribe = onValue(dbRef(db, `riwayat_transaksi/${id}`), snap => {
     loadingHist.value = false
-    const logs = snap.val() || {}
-    
-    // PENGHITUNGAN RUNNING BALANCE OTOMATIS SAAT DIBUKA
-    const history = Object.values(logs).sort((a, b) => new Date(a.tanggal) - new Date(b.tanggal))
-    let rBal = 0
-    let bBal = {}
-
-    history.forEach(l => {
-      const q = parseFloat(l.qty) || 0
-      const b = l.blok || ''
-      if (l.tipe === 'MASUK') {
-        rBal += q; if (b) bBal[b] = (bBal[b] || 0) + q;
-      } else if (l.tipe === 'KELUAR') {
-        rBal -= q; if (b) bBal[b] = (bBal[b] || 0) - q;
-      } else if (l.tipe === 'OPNAME') {
-        if (b) { rBal += (q - (bBal[b]||0)); bBal[b] = q; } else { rBal = q; }
-      } else if (l.tipe === 'MUTASI') {
-        if (b.includes('->')) {
-          const [asal, tujuan] = b.split('->').map(s => s.trim())
-          if (asal !== 'Tanpa Lokasi') bBal[asal] = (bBal[asal] || 0) - q
-          if (tujuan !== 'Tanpa Lokasi') bBal[tujuan] = (bBal[tujuan] || 0) + q
-        }
-      }
-      l.calculatedBal = parseFloat(rBal.toFixed(2))
-    })
-
-    // Balik urutan untuk ditampilkan dari yang terbaru
-    history.reverse()
-
+    const data = snap.val() || {}
     const grouped = {}
-    history.forEach(r => {
+    
+    Object.values(data).sort((a, b) => new Date(a.tanggal) - new Date(b.tanggal)).forEach(r => {
+      const finalBal = r.stokAkhir !== undefined ? parseFloat(r.stokAkhir) : 0
       const key = (r.tanggal || '').slice(0, 7)
       if (!grouped[key]) grouped[key] = []
-      grouped[key].push(r)
+      grouped[key].push({ ...r, calculatedBal: finalBal })
     })
     
     allLogs.value = grouped
@@ -170,9 +131,16 @@ const loadHistoryData = (id) => {
   })
 }
 
-const bukaEdit = (log) => { activeEditTrans.value = { ...log, idUnik: activeItem.value.idUnik, item: activeItem.value }; emit('close') }
-const reloadHist = () => { if (activeHistId.value) loadHistoryData(activeHistId.value) }
+const bukaEdit = (log) => {
+  activeEditTrans.value = { ...log, idUnik: activeItem.value.idUnik, item: activeItem.value }
+  emit('close') 
+}
+
+const reloadHist = () => {
+  if (activeHistId.value) loadHistoryData(activeHistId.value)
+}
 defineExpose({ reloadHist })
+
 watch(activeHistId, loadHistoryData, { immediate: true })
 onUnmounted(() => { if (unsubscribe) unsubscribe() })
 </script>
@@ -180,32 +148,42 @@ onUnmounted(() => { if (unsubscribe) unsubscribe() })
 <style scoped>
 .hist-wrapper { position: fixed; inset: 0; z-index: 1060; display: flex; justify-content: flex-end; }
 .hist-overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.5); backdrop-filter: blur(2px); }
-.hist-drawer { width: 100%; max-width: 400px; height: 100vh; background: var(--bg-card); z-index: 2; display: flex; flex-direction: column; box-shadow: -10px 0 30px rgba(0,0,0,0.2); border-left: 1px solid var(--border-color); animation: slideIn 0.3s ease-out; }
+
+.hist-drawer {
+  width: 100%; max-width: 400px; height: 100vh;
+  background: var(--bg-card); z-index: 2; display: flex; flex-direction: column;
+  box-shadow: -10px 0 30px rgba(0,0,0,0.2); border-left: 1px solid var(--border-color);
+  animation: slideIn 0.3s ease-out;
+}
 @keyframes slideIn { from { transform: translateX(100%); } to { transform: translateX(0); } }
+
 .drawer-header { padding: 24px 20px; border-bottom: 1px solid var(--border-color); }
 .stok-tag { font-size: 0.7rem; font-weight: 800; background: rgba(16, 185, 129, 0.1); color: #10b981; padding: 2px 8px; border-radius: 6px; }
 .chips-container { padding: 12px 15px; background: var(--bg-main); }
 .chips-scroll { display: flex; gap: 8px; overflow-x: auto; }
 .hist-chip { padding: 6px 14px; border-radius: 10px; font-size: 0.75rem; font-weight: 700; cursor: pointer; background: var(--bg-card); color: var(--text-muted); border: 1px solid var(--border-color); }
 .hist-chip.active { background: #4f46e5; color: white; border-color: #4f46e5; }
-.summary-box { background: var(--bg-main); border: 1px solid var(--border-color); border-radius: 12px; padding: 10px 0; }
-.border-light { border-color: var(--border-color) !important; }
+
 .hist-list { flex: 1; overflow-y: auto; padding: 20px 15px; }
 .feed-item { display: flex; gap: 15px; margin-bottom: 20px; }
 .feed-time { text-align: right; min-width: 50px; padding-top: 4px; color: var(--text-muted); }
 .day { font-size: 0.75rem; font-weight: 800; color: var(--text-main); }
 .hour { font-size: 0.65rem; }
 .feed-card { flex: 1; background: var(--bg-main); border-radius: 12px; padding: 12px 15px; border-left: 5px solid; }
+
 .border-masuk { border-left-color: #10b981; }
 .border-keluar { border-left-color: #ef4444; }
 .border-opname { border-left-color: #f59e0b; }
+
 .text-masuk { color: #10b981; }
 .text-keluar { color: #ef4444; }
 .text-opname { color: #f59e0b; }
+
 .badge-soft { font-size: 0.6rem; font-weight: 800; padding: 3px 8px; border-radius: 5px; text-transform: uppercase; }
 .badge-soft-masuk { background: rgba(16, 185, 129, 0.1); color: #10b981; }
 .badge-soft-keluar { background: rgba(239, 68, 68, 0.1); color: #ef4444; }
 .badge-soft-opname { background: rgba(245, 158, 11, 0.1); color: #f59e0b; }
+
 .btn-close-custom { background: var(--bg-main); border: 1px solid var(--border-color); width: 32px; height: 32px; border-radius: 8px; color: var(--text-muted); display: flex; align-items: center; justify-content: center; }
 .btn-icon-edit { padding: 2px 6px; font-size: 0.65rem; border-radius: 4px; background: transparent; color: var(--text-muted); border: 1px solid var(--border-color); transition: all 0.2s; }
 .btn-icon-edit:hover { background: rgba(14, 165, 233, 0.1); color: #0ea5e9; border-color: rgba(14, 165, 233, 0.3); }

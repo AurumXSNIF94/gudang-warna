@@ -51,12 +51,10 @@
           </div>
 
           <div class="d-grid gap-2">
-            <button type="button" class="btn btn-lg fw-bold shadow-sm save-btn"
-                    :disabled="saving" @click="simpan">
+            <button type="button" class="btn btn-lg fw-bold shadow-sm save-btn" :disabled="saving" @click="simpan">
               <i class="fas fa-save me-2"></i> {{ saving ? 'Menyimpan...' : 'UPDATE TRANSAKSI' }}
             </button>
-            <button type="button" class="btn btn-outline-danger fw-bold delete-btn"
-                    :disabled="saving" @click="hapus">
+            <button type="button" class="btn btn-outline-danger fw-bold delete-btn" :disabled="saving" @click="hapus">
               <i class="fas fa-trash-alt me-1"></i> HAPUS TRANSAKSI
             </button>
           </div>
@@ -68,12 +66,14 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
-import { ref as dbRef, update, remove, get } from 'firebase/database'
+import { ref as dbRef, update } from 'firebase/database'
 import { db } from '../../firebase'
 import { activeEditTrans } from '../../composables/useEditTrans'
 import { masterBlok } from '../../composables/useBlok'
+import { useStok } from '../../composables/useStok' // IMPORT ENGINE BARU
 
 const emit = defineEmits(['close', 'saved'])
+const { sinkronisasiStok } = useStok()
 
 const tanggal = ref(''), tipe = ref(''), qty = ref(0), blok = ref(''), keterangan = ref(''), saving = ref(false)
 
@@ -88,84 +88,12 @@ onMounted(() => {
   tipe.value = trx.tipe; qty.value = trx.qty; blok.value = trx.blok || ''; keterangan.value = trx.keterangan || ''
 })
 
-// =====================================================================
-// ENGINE REKALKULASI (MENGURUTKAN ULANG BUKU BESAR SUPAYA 100% AKURAT)
-// =====================================================================
-const recalcItemHistory = async (itemID) => {
-  const snap = await get(dbRef(db, `riwayat_transaksi/${itemID}`))
-  const logsObj = snap.val() || {}
-  const logs = Object.values(logsObj)
-
-  // 1. Urutkan riwayat dari yang paling TUA ke yang BARU
-  logs.sort((a, b) => new Date(a.tanggal) - new Date(b.tanggal))
-
-  let currentStok = 0
-  let currentBloks = {}
-  const updates = {}
-
-  // 2. Hitung ulang running balance satu per satu layaknya buku tabungan
-  for (const l of logs) {
-    const q = parseFloat(l.qty) || 0
-    const b = l.blok || ''
-
-    if (l.tipe === 'MASUK') {
-      currentStok += q
-      if (b && b !== 'Tanpa Lokasi') currentBloks[b] = (parseFloat(currentBloks[b]) || 0) + q
-    } else if (l.tipe === 'KELUAR') {
-      currentStok -= q
-      if (b && b !== 'Tanpa Lokasi') currentBloks[b] = (parseFloat(currentBloks[b]) || 0) - q
-    } else if (l.tipe === 'OPNAME') {
-      if (b && b !== 'Tanpa Lokasi') {
-        const lama = parseFloat(currentBloks[b]) || 0
-        const selisih = q - lama
-        currentStok += selisih
-        currentBloks[b] = q
-      } else {
-        currentStok = q
-      }
-    } else if (l.tipe === 'MUTASI') {
-      if (b.includes('->')) {
-        const [asal, tujuan] = b.split('->').map(s => s.trim())
-        if (asal !== 'Tanpa Lokasi') currentBloks[asal] = (parseFloat(currentBloks[asal]) || 0) - q
-        if (tujuan !== 'Tanpa Lokasi') currentBloks[tujuan] = (parseFloat(currentBloks[tujuan]) || 0) + q
-      }
-    }
-
-    // Bersihkan blok yang minus atau nol
-    for (const k in currentBloks) {
-      if (currentBloks[k] < 0.001) delete currentBloks[k]
-    }
-
-    // 3. Catat stokAkhir yang akurat ke setiap baris riwayat
-    l.stokAkhir = parseFloat(currentStok.toFixed(2))
-    updates[`riwayat_transaksi/${itemID}/${l.trxId}/stokAkhir`] = l.stokAkhir
-  }
-
-  currentStok = parseFloat(currentStok.toFixed(2))
-  for (const k in currentBloks) {
-    currentBloks[k] = parseFloat(currentBloks[k].toFixed(2))
-    if (currentBloks[k] <= 0) delete currentBloks[k]
-  }
-
-  // 4. Update data stok utama
-  updates[`stok_benang/${itemID}/stok`] = currentStok
-  updates[`stok_benang/${itemID}/bloks`] = Object.keys(currentBloks).length ? currentBloks : null
-
-  await update(dbRef(db), updates)
-}
-// =====================================================================
-
 const simpan = async () => {
   const trx = activeEditTrans.value
   if (!trx) return
   
-  if (!tanggal.value) {
-    window.Swal.fire('Error', 'Tanggal tidak boleh kosong', 'warning')
-    return
-  }
-
   if (trx.tipe === 'OPNAME' || trx.tipe === 'MUTASI' || tipe.value === 'OPNAME') {
-    window.Swal.fire('Perhatian', 'Nilai / Tipe pada transaksi OPNAME dan MUTASI tidak bisa direvisi. Silakan HAPUS transaksi ini lalu buat yang baru.', 'warning')
+    window.Swal.fire('Peringatan', 'Nilai OPNAME / MUTASI tidak bisa direvisi. Silakan Hapus riwayat ini dan buat baru.', 'warning')
     return
   }
 
@@ -173,36 +101,28 @@ const simpan = async () => {
   const itemID = trx.parentId || trx.idUnik 
 
   try {
-    const updates = {}
-    const isoDate = new Date(tanggal.value).toISOString()
+    // 1. UPDATE TEKS RIWAYAT SAJA
+    await update(dbRef(db, `riwayat_transaksi/${itemID}/${trx.trxId}`), {
+      tanggal: new Date(tanggal.value).toISOString(),
+      tipe: tipe.value,
+      qty: parseFloat(qty.value) || 0,
+      blok: blok.value,
+      keterangan: keterangan.value.toUpperCase()
+    })
     
-    // 1. Simpan perubahan ke baris riwayat ini saja
-    updates[`riwayat_transaksi/${itemID}/${trx.trxId}/tanggal`] = isoDate
-    updates[`riwayat_transaksi/${itemID}/${trx.trxId}/tipe`] = tipe.value
-    updates[`riwayat_transaksi/${itemID}/${trx.trxId}/qty`] = parseFloat(qty.value) || 0
-    updates[`riwayat_transaksi/${itemID}/${trx.trxId}/blok`] = blok.value
-    updates[`riwayat_transaksi/${itemID}/${trx.trxId}/keterangan`] = keterangan.value.toUpperCase()
+    // 2. SURUH USESTOK.JS NGITUNG ULANG DARI NOL KE 100
+    await sinkronisasiStok(itemID)
 
-    await update(dbRef(db), updates)
-    
-    // 2. Jalankan engine rekalkulasi agar saldo ke depan otomatis sinkron & benar
-    await recalcItemHistory(itemID)
-
-    window.Swal.fire({ icon: 'success', title: 'Tersimpan & Terekalkulasi!', timer: 1500, showConfirmButton: false })
+    window.Swal.fire({ icon: 'success', title: 'Tersimpan!', timer: 1500, showConfirmButton: false })
     emit('saved'); emit('close')
-  } catch(e) { 
-    window.Swal.fire('Error', e.message, 'error') 
-  } finally { 
-    saving.value = false 
-  }
+  } catch(e) { window.Swal.fire('Error', e.message, 'error') } finally { saving.value = false }
 }
 
 const hapus = async () => {
   const trx = activeEditTrans.value
   if (!trx) return
   const result = await window.Swal.fire({ 
-    title: 'Yakin Hapus Transaksi?', 
-    text: 'Aman. Saldo akan otomatis disesuaikan.', 
+    title: 'Hapus Transaksi?', text: 'Stok akan disesuaikan secara otomatis.', 
     icon: 'warning', showCancelButton: true, confirmButtonColor: '#dc2626' 
   })
   if (!result.isConfirmed) return
@@ -211,19 +131,17 @@ const hapus = async () => {
   const itemID = trx.parentId || trx.idUnik 
   
   try {
-    // 1. Cabut/Hapus riwayat dari database
-    await remove(dbRef(db, `riwayat_transaksi/${itemID}/${trx.trxId}`))
+    // 1. HAPUS DATA RIWAYATNYA
+    const updates = {}
+    updates[`riwayat_transaksi/${itemID}/${trx.trxId}`] = null
+    await update(dbRef(db), updates)
     
-    // 2. Jalankan engine rekalkulasi
-    await recalcItemHistory(itemID)
+    // 2. SURUH USESTOK.JS NGITUNG ULANG
+    await sinkronisasiStok(itemID)
 
-    window.Swal.fire({ icon: 'success', title: 'Berhasil Dihapus!', timer: 1500, showConfirmButton: false })
+    window.Swal.fire({ icon: 'success', title: 'Dihapus!', timer: 1500, showConfirmButton: false })
     emit('saved'); emit('close')
-  } catch(e) { 
-    window.Swal.fire('Error', e.message, 'error') 
-  } finally { 
-    saving.value = false 
-  }
+  } catch(e) { window.Swal.fire('Error', e.message, 'error') } finally { saving.value = false }
 }
 </script>
 

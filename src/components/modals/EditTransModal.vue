@@ -22,6 +22,7 @@
               <label class="form-label">Tipe</label>
               <select class="form-select custom-input fw-bold" v-model="tipe">
                 <option value="MASUK">MASUK</option>
+                <option value="RETUR">RETUR</option>
                 <option value="KELUAR">KELUAR</option>
                 <option value="OPNAME">OPNAME</option>
               </select>

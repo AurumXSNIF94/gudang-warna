@@ -51,10 +51,12 @@
           </div>
 
           <div class="d-grid gap-2">
-            <button type="button" class="btn btn-lg fw-bold shadow-sm save-btn" :disabled="saving" @click="simpan">
+            <button type="button" class="btn btn-lg fw-bold shadow-sm save-btn"
+                    :disabled="saving" @click="simpan">
               <i class="fas fa-save me-2"></i> {{ saving ? 'Menyimpan...' : 'UPDATE TRANSAKSI' }}
             </button>
-            <button type="button" class="btn btn-outline-danger fw-bold delete-btn" :disabled="saving" @click="hapus">
+            <button type="button" class="btn btn-outline-danger fw-bold delete-btn"
+                    :disabled="saving" @click="hapus">
               <i class="fas fa-trash-alt me-1"></i> HAPUS TRANSAKSI
             </button>
           </div>
@@ -66,42 +68,34 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
-import { ref as dbRef, update } from 'firebase/database'
+import { ref as dbRef, update, remove } from 'firebase/database'
 import { db } from '../../firebase'
 import { activeEditTrans } from '../../composables/useEditTrans'
 import { masterBlok } from '../../composables/useBlok'
-import { useStok } from '../../composables/useStok' // IMPORT ENGINE BARU
+import { useStok } from '../../composables/useStok' 
 
 const emit = defineEmits(['close', 'saved'])
-const { sinkronisasiStok } = useStok()
+const { jalankanAudit } = useStok()
 
 const tanggal = ref(''), tipe = ref(''), qty = ref(0), blok = ref(''), keterangan = ref(''), saving = ref(false)
 
 onMounted(() => {
   const trx = activeEditTrans.value
   if (!trx) return
-  if (trx.tanggal) {
-    const d = new Date(trx.tanggal)
-    d.setMinutes(d.getMinutes() - d.getTimezoneOffset())
-    tanggal.value = d.toISOString().slice(0, 16)
-  }
+  const d = new Date(trx.tanggal)
+  d.setMinutes(d.getMinutes() - d.getTimezoneOffset())
+  tanggal.value = d.toISOString().slice(0, 16)
   tipe.value = trx.tipe; qty.value = trx.qty; blok.value = trx.blok || ''; keterangan.value = trx.keterangan || ''
 })
 
 const simpan = async () => {
   const trx = activeEditTrans.value
   if (!trx) return
-  
-  if (trx.tipe === 'OPNAME' || trx.tipe === 'MUTASI' || tipe.value === 'OPNAME') {
-    window.Swal.fire('Peringatan', 'Nilai OPNAME / MUTASI tidak bisa direvisi. Silakan Hapus riwayat ini dan buat baru.', 'warning')
-    return
-  }
-
   saving.value = true
+  
   const itemID = trx.parentId || trx.idUnik 
-
+  
   try {
-    // 1. UPDATE TEKS RIWAYAT SAJA
     await update(dbRef(db, `riwayat_transaksi/${itemID}/${trx.trxId}`), {
       tanggal: new Date(tanggal.value).toISOString(),
       tipe: tipe.value,
@@ -110,20 +104,26 @@ const simpan = async () => {
       keterangan: keterangan.value.toUpperCase()
     })
     
-    // 2. SURUH USESTOK.JS NGITUNG ULANG DARI NOL KE 100
-    await sinkronisasiStok(itemID)
-
+    await jalankanAudit()
+    
     window.Swal.fire({ icon: 'success', title: 'Tersimpan!', timer: 1500, showConfirmButton: false })
     emit('saved'); emit('close')
-  } catch(e) { window.Swal.fire('Error', e.message, 'error') } finally { saving.value = false }
+  } catch(e) { 
+    window.Swal.fire('Error', e.message, 'error') 
+  } finally { 
+    saving.value = false 
+  }
 }
 
 const hapus = async () => {
   const trx = activeEditTrans.value
   if (!trx) return
   const result = await window.Swal.fire({ 
-    title: 'Hapus Transaksi?', text: 'Stok akan disesuaikan secara otomatis.', 
-    icon: 'warning', showCancelButton: true, confirmButtonColor: '#dc2626' 
+    title: 'Hapus Transaksi?', 
+    text: 'Data akan hilang permanen!', 
+    icon: 'warning', 
+    showCancelButton: true, 
+    confirmButtonColor: '#dc2626' 
   })
   if (!result.isConfirmed) return
   
@@ -131,17 +131,17 @@ const hapus = async () => {
   const itemID = trx.parentId || trx.idUnik 
   
   try {
-    // 1. HAPUS DATA RIWAYATNYA
-    const updates = {}
-    updates[`riwayat_transaksi/${itemID}/${trx.trxId}`] = null
-    await update(dbRef(db), updates)
+    await remove(dbRef(db, `riwayat_transaksi/${itemID}/${trx.trxId}`))
     
-    // 2. SURUH USESTOK.JS NGITUNG ULANG
-    await sinkronisasiStok(itemID)
-
+    await jalankanAudit()
+    
     window.Swal.fire({ icon: 'success', title: 'Dihapus!', timer: 1500, showConfirmButton: false })
     emit('saved'); emit('close')
-  } catch(e) { window.Swal.fire('Error', e.message, 'error') } finally { saving.value = false }
+  } catch(e) { 
+    window.Swal.fire('Error', e.message, 'error') 
+  } finally { 
+    saving.value = false 
+  }
 }
 </script>
 

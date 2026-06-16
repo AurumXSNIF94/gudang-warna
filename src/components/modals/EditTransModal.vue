@@ -69,14 +69,12 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
-import { ref as dbRef, update, remove } from 'firebase/database'
+import { ref as dbRef, update, get } from 'firebase/database'
 import { db } from '../../firebase'
 import { activeEditTrans } from '../../composables/useEditTrans'
 import { masterBlok } from '../../composables/useBlok'
-import { useStok } from '../../composables/useStok' 
 
 const emit = defineEmits(['close', 'saved'])
-const { jalankanAudit } = useStok()
 
 const tanggal = ref(''), tipe = ref(''), qty = ref(0), blok = ref(''), keterangan = ref(''), saving = ref(false)
 
@@ -89,24 +87,72 @@ onMounted(() => {
   tipe.value = trx.tipe; qty.value = trx.qty; blok.value = trx.blok || ''; keterangan.value = trx.keterangan || ''
 })
 
+// FUNGSI MATEMATIKA BERSIH: Untuk membatalkan transaksi lama
+const cabutEfekLama = (t, q, b, stok, bloks) => {
+  if (t === 'MASUK' || t === 'RETUR') {
+    stok -= q; if (b) bloks[b] = (parseFloat(bloks[b]) || 0) - q;
+  } else if (t === 'KELUAR') {
+    stok += q; if (b) bloks[b] = (parseFloat(bloks[b]) || 0) + q;
+  }
+  return stok;
+}
+
+// FUNGSI MATEMATIKA BERSIH: Untuk menerapkan transaksi baru
+const terapEfekBaru = (t, q, b, stok, bloks) => {
+  if (t === 'MASUK' || t === 'RETUR') {
+    stok += q; if (b) bloks[b] = (parseFloat(bloks[b]) || 0) + q;
+  } else if (t === 'KELUAR') {
+    stok -= q; if (b) bloks[b] = (parseFloat(bloks[b]) || 0) - q;
+  }
+  return stok;
+}
+
 const simpan = async () => {
   const trx = activeEditTrans.value
   if (!trx) return
+  
+  if (trx.tipe === 'OPNAME' || tipe.value === 'OPNAME') {
+    window.Swal.fire('Perhatian', 'Transaksi OPNAME tidak bisa direvisi angkanya. Silakan HAPUS transaksi ini, lalu buat Opname baru yang benar.', 'warning')
+    return
+  }
+
   saving.value = true
-  
   const itemID = trx.parentId || trx.idUnik 
-  
+  const qBaru = parseFloat(qty.value) || 0
+  const qLama = parseFloat(trx.qty) || 0
+
   try {
-    await update(dbRef(db, `riwayat_transaksi/${itemID}/${trx.trxId}`), {
+    const snap = await get(dbRef(db, `stok_benang/${itemID}`))
+    let itemData = snap.val() || { stok: 0, bloks: {} }
+    let currentStok = parseFloat(itemData.stok) || 0
+    let bloks = itemData.bloks || {}
+
+    // Cabut angka lama, masukkan angka baru
+    currentStok = cabutEfekLama(trx.tipe, qLama, trx.blok, currentStok, bloks)
+    currentStok = terapEfekBaru(tipe.value, qBaru, blok.value, currentStok, bloks)
+
+    // Bersihkan koma dan blok kosong
+    for (let k in bloks) {
+      bloks[k] = parseFloat(bloks[k].toFixed(2))
+      if (bloks[k] <= 0) delete bloks[k]
+    }
+    currentStok = parseFloat(currentStok.toFixed(2))
+
+    const updates = {}
+    updates[`stok_benang/${itemID}/stok`] = currentStok
+    updates[`stok_benang/${itemID}/bloks`] = Object.keys(bloks).length ? bloks : null
+    
+    updates[`riwayat_transaksi/${itemID}/${trx.trxId}`] = {
+      ...trx,
       tanggal: new Date(tanggal.value).toISOString(),
       tipe: tipe.value,
-      qty: parseFloat(qty.value) || 0,
+      qty: qBaru,
       blok: blok.value,
       keterangan: keterangan.value.toUpperCase()
-    })
-    
-    await jalankanAudit()
-    
+      // Kita HAPUS update stokAkhir di sini agar dihitung otomatis oleh HistDrawer!
+    }
+
+    await update(dbRef(db), updates)
     window.Swal.fire({ icon: 'success', title: 'Tersimpan!', timer: 1500, showConfirmButton: false })
     emit('saved'); emit('close')
   } catch(e) { 
@@ -121,22 +167,38 @@ const hapus = async () => {
   if (!trx) return
   const result = await window.Swal.fire({ 
     title: 'Hapus Transaksi?', 
-    text: 'Data akan hilang permanen!', 
-    icon: 'warning', 
-    showCancelButton: true, 
-    confirmButtonColor: '#dc2626' 
+    text: 'Stok akan dikembalikan ke sebelum transaksi ini terjadi!', 
+    icon: 'warning', showCancelButton: true, confirmButtonColor: '#dc2626' 
   })
   if (!result.isConfirmed) return
   
   saving.value = true
-  
   const itemID = trx.parentId || trx.idUnik 
+  const qLama = parseFloat(trx.qty) || 0
   
   try {
-    await remove(dbRef(db, `riwayat_transaksi/${itemID}/${trx.trxId}`))
-    
-    await jalankanAudit()
-    
+    const snap = await get(dbRef(db, `stok_benang/${itemID}`))
+    let itemData = snap.val() || { stok: 0, bloks: {} }
+    let currentStok = parseFloat(itemData.stok) || 0
+    let bloks = itemData.bloks || {}
+
+    // Batalkan efek transaksi yang dihapus
+    if (trx.tipe !== 'OPNAME') {
+      currentStok = cabutEfekLama(trx.tipe, qLama, trx.blok, currentStok, bloks)
+    }
+
+    for (let k in bloks) {
+      bloks[k] = parseFloat(bloks[k].toFixed(2))
+      if (bloks[k] <= 0) delete bloks[k]
+    }
+    currentStok = parseFloat(currentStok.toFixed(2))
+
+    const updates = {}
+    updates[`stok_benang/${itemID}/stok`] = currentStok
+    updates[`stok_benang/${itemID}/bloks`] = Object.keys(bloks).length ? bloks : null
+    updates[`riwayat_transaksi/${itemID}/${trx.trxId}`] = null // Ini yang menghapus datanya
+
+    await update(dbRef(db), updates)
     window.Swal.fire({ icon: 'success', title: 'Dihapus!', timer: 1500, showConfirmButton: false })
     emit('saved'); emit('close')
   } catch(e) { 

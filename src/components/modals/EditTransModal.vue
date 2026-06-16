@@ -128,6 +128,7 @@ const hapus = async () => {
   if (!result.isConfirmed) return
   
   saving.value = true
+  
   const itemID = trx.parentId || trx.idUnik 
   
   try {

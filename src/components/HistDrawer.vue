@@ -28,10 +28,11 @@
         </div>
       </div>
 
+      <!-- RINGKASAN TOTAL IN & OUT BULANAN -->
       <div v-if="currentLogs.length" class="px-3 pt-2">
         <div class="summary-box d-flex justify-content-between align-items-center shadow-sm">
           <div class="text-center flex-fill border-end border-light">
-            <span class="d-block" style="font-size: 0.65rem; font-weight: 800; color: var(--text-muted);">TOTAL IN</span>
+            <span class="d-block" style="font-size: 0.65rem; font-weight: 800; color: var(--text-muted);">TOTAL IN (Masuk & Retur)</span>
             <span class="fw-bold text-success" style="font-size: 0.9rem;">+{{ fmt(totalMasukBulanIni) }}</span>
           </div>
           <div class="text-center flex-fill">
@@ -57,7 +58,6 @@
               <div class="d-flex justify-content-between align-items-center mb-1">
                 <div class="d-flex align-items-center gap-2">
                   <span class="badge-soft" :class="`badge-soft-${r.tipe.toLowerCase()}`">{{ r.tipe }}</span>
-                  
                   <button v-if="isAdmin" 
                           class="btn btn-sm btn-icon-edit" 
                           title="Edit Transaksi Ini"
@@ -66,8 +66,9 @@
                   </button>
                 </div>
                 
+                <!-- LOGIKA BARU: Jika MASUK atau RETUR tampilkan + -->
                 <span class="fw-bold fs-6" :class="`text-${r.tipe.toLowerCase()}`">
-                  {{ r.tipe === 'MASUK' ? '+' : r.tipe === 'KELUAR' ? '-' : '' }}{{ fmt(r.qty) }} Kg
+                  {{ (r.tipe === 'MASUK' || r.tipe === 'RETUR') ? '+' : r.tipe === 'KELUAR' ? '-' : '' }}{{ fmt(r.qty) }} Kg
                 </span>
               </div>
               
@@ -117,7 +118,7 @@ const currentLogs = computed(() => (allLogs.value[activeMonth.value] || []).slic
 
 const totalMasukBulanIni = computed(() => {
   return currentLogs.value
-    .filter(r => r.tipe === 'MASUK')
+    .filter(r => r.tipe === 'MASUK' || r.tipe === 'RETUR') // LOGIKA BARU
     .reduce((sum, r) => sum + (parseFloat(r.qty) || 0), 0)
 })
 
@@ -171,11 +172,9 @@ onUnmounted(() => { if (unsubscribe) unsubscribe() })
 </script>
 
 <style scoped>
-/* WRAPPER & OVERLAY */
 .hist-wrapper { position: fixed; inset: 0; z-index: 1060; display: flex; justify-content: flex-end; }
 .hist-overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.5); backdrop-filter: blur(2px); }
 
-/* DRAWER PANEL NORMAL */
 .hist-drawer {
   width: 100%; max-width: 400px; height: 100vh;
   background: var(--bg-card); z-index: 2; display: flex; flex-direction: column;
@@ -184,7 +183,6 @@ onUnmounted(() => { if (unsubscribe) unsubscribe() })
 }
 @keyframes slideIn { from { transform: translateX(100%); } to { transform: translateX(0); } }
 
-/* HEADER & CHIPS */
 .drawer-header { padding: 24px 20px; border-bottom: 1px solid var(--border-color); }
 .stok-tag { font-size: 0.7rem; font-weight: 800; background: rgba(16, 185, 129, 0.1); color: #10b981; padding: 2px 8px; border-radius: 6px; }
 .chips-container { padding: 12px 15px; background: var(--bg-main); }
@@ -192,13 +190,9 @@ onUnmounted(() => { if (unsubscribe) unsubscribe() })
 .hist-chip { padding: 6px 14px; border-radius: 10px; font-size: 0.75rem; font-weight: 700; cursor: pointer; background: var(--bg-card); color: var(--text-muted); border: 1px solid var(--border-color); }
 .hist-chip.active { background: #4f46e5; color: white; border-color: #4f46e5; }
 
-/* SUMMARY BOX (KOTAK TOTAL IN & OUT) */
-.summary-box {
-  background: var(--bg-main); border: 1px solid var(--border-color); border-radius: 12px; padding: 10px 0;
-}
+.summary-box { background: var(--bg-main); border: 1px solid var(--border-color); border-radius: 12px; padding: 10px 0; }
 .border-light { border-color: var(--border-color) !important; }
 
-/* FEED LIST */
 .hist-list { flex: 1; overflow-y: auto; padding: 20px 15px; }
 .feed-item { display: flex; gap: 15px; margin-bottom: 20px; }
 .feed-time { text-align: right; min-width: 50px; padding-top: 4px; color: var(--text-muted); }
@@ -206,26 +200,24 @@ onUnmounted(() => { if (unsubscribe) unsubscribe() })
 .hour { font-size: 0.65rem; }
 .feed-card { flex: 1; background: var(--bg-main); border-radius: 12px; padding: 12px 15px; border-left: 5px solid; }
 
-/* STATUS COLORS & BADGES */
+/* WARNA STATUS */
 .border-masuk { border-left-color: #10b981; }
 .border-keluar { border-left-color: #ef4444; }
 .border-opname { border-left-color: #f59e0b; }
+.border-retur { border-left-color: #8b5cf6; } /* UNGU UNTUK RETUR */
+
 .text-masuk { color: #10b981; }
 .text-keluar { color: #ef4444; }
 .text-opname { color: #f59e0b; }
+.text-retur { color: #8b5cf6; } /* UNGU UNTUK RETUR */
+
 .badge-soft { font-size: 0.6rem; font-weight: 800; padding: 3px 8px; border-radius: 5px; text-transform: uppercase; }
 .badge-soft-masuk { background: rgba(16, 185, 129, 0.1); color: #10b981; }
 .badge-soft-keluar { background: rgba(239, 68, 68, 0.1); color: #ef4444; }
 .badge-soft-opname { background: rgba(245, 158, 11, 0.1); color: #f59e0b; }
-.btn-close-custom { background: var(--bg-main); border: 1px solid var(--border-color); width: 32px; height: 32px; border-radius: 8px; color: var(--text-muted); display: flex; align-items: center; justify-content: center; }
+.badge-soft-retur { background: rgba(139, 92, 246, 0.1); color: #8b5cf6; } /* UNGU UNTUK RETUR */
 
-/* TOMBOL EDIT RIWAYAT */
-.btn-icon-edit {
-  padding: 2px 6px; font-size: 0.65rem; border-radius: 4px;
-  background: transparent; color: var(--text-muted); border: 1px solid var(--border-color);
-  transition: all 0.2s;
-}
-.btn-icon-edit:hover {
-  background: rgba(14, 165, 233, 0.1); color: #0ea5e9; border-color: rgba(14, 165, 233, 0.3);
-}
+.btn-close-custom { background: var(--bg-main); border: 1px solid var(--border-color); width: 32px; height: 32px; border-radius: 8px; color: var(--text-muted); display: flex; align-items: center; justify-content: center; }
+.btn-icon-edit { padding: 2px 6px; font-size: 0.65rem; border-radius: 4px; background: transparent; color: var(--text-muted); border: 1px solid var(--border-color); transition: all 0.2s; }
+.btn-icon-edit:hover { background: rgba(14, 165, 233, 0.1); color: #0ea5e9; border-color: rgba(14, 165, 233, 0.3); }
 </style>

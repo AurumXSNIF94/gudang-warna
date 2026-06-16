@@ -48,7 +48,6 @@
                   <label class="form-label mb-1">Tipe</label>
                   <select class="form-select form-select-sm fw-bold custom-input" v-model="globalTipe">
                     <option value="MASUK">IN (Masuk)</option>
-                    <option value="RETUR">RTR (Retur)</option>
                     <option value="KELUAR">OUT (Keluar)</option>
                     <option value="OPNAME">ADJ (Opname)</option>
                   </select>
@@ -197,7 +196,7 @@
 
         <div class="modal-footer border-0 p-4 pt-2">
           <button class="btn btn-lg fw-bold w-100 shadow-sm submit-btn"
-                  :class="globalTipe === 'MASUK' ? 'btn-in-submit' : globalTipe === 'RETUR' ? 'btn-retur-submit' : globalTipe === 'KELUAR' ? 'btn-out-submit' : 'btn-opname-submit'"
+                  :class="globalTipe === 'MASUK' ? 'btn-in-submit' : globalTipe === 'KELUAR' ? 'btn-out-submit' : 'btn-opname-submit'"
                   :disabled="!validCount || submitting"
                   @click="submit">
             <i v-if="submitting" class="fas fa-circle-notch fa-spin me-2"></i>
@@ -265,7 +264,7 @@ const getSaldoAwal = (row) => {
 }
 
 const previewColor = computed(() => ({
-  'text-success': globalTipe.value === 'MASUK' || globalTipe.value === 'RETUR',
+  'text-success': globalTipe.value === 'MASUK',
   'text-danger':  globalTipe.value === 'KELUAR',
   'text-warning': globalTipe.value === 'OPNAME'
 }))
@@ -273,7 +272,7 @@ const previewColor = computed(() => ({
 const previewSaldo = (row) => {
   const q = parseFloat(row.qty) || 0
   const s = getSaldoAwal(row)
-  if (globalTipe.value === 'MASUK' || globalTipe.value === 'RETUR')  return s + q
+  if (globalTipe.value === 'MASUK')  return s + q
   if (globalTipe.value === 'KELUAR') return s - q
   if (globalTipe.value === 'OPNAME') return q
   return s
@@ -425,7 +424,7 @@ const submit = async () => {
       const bloks = pendingBloks[row.itemId]
       let currentStok = pendingStok[row.itemId]
 
-      if (globalTipe.value === 'MASUK' || globalTipe.value === 'RETUR') {
+      if (globalTipe.value === 'MASUK') {
         currentStok += qty
         if (blokNama) {
           bloks[blokNama] = parseFloat(((bloks[blokNama] || 0) + qty).toFixed(2))
@@ -586,5 +585,4 @@ const submit = async () => {
 .btn-in-submit { background: linear-gradient(135deg, #10b981, #059669); }
 .btn-out-submit { background: linear-gradient(135deg, #ef4444, #dc2626); }
 .btn-opname-submit { background: linear-gradient(135deg, #f59e0b, #d97706); }
-.btn-retur-submit { background: linear-gradient(135deg, #8b5cf6, #6d28d9); } /* GRADASI UNGU */
 </style>

@@ -4,192 +4,204 @@ import { db } from '../firebase'
 
 export const dbStok = ref([])
 export const itemVelocity = ref({})
-export const loading = ref(true)
+export const loading = ref(false)
+
+let isListening = false 
+let isAuditing = false 
 
 export function useStok() {
-  
   const refreshData = () => {
+    if (isListening) return
+    isListening = true
+    
     loading.value = true
-    onValue(dbRef(db, 'stok_benang'), (snap) => {
-      const data = snap.val() || {}
-      dbStok.value = Object.keys(data).map(k => ({ idUnik: k, ...data[k] }))
-      kalkulasiVelocity()
+    onValue(dbRef(db, 'stok_benang'), snap => {
+      const data = snap.val()
+      const arr = []
+      if (data) {
+        Object.keys(data).forEach(k => {
+          if (data[k]) arr.push({ ...data[k], idUnik: k })
+        })
+        arr.sort((a, b) => (b.stok || 0) - (a.stok || 0))
+      }
+      dbStok.value = arr
       loading.value = false
     })
   }
 
-  const kalkulasiVelocity = () => {
-    const vel = {}
-    dbStok.value.forEach(item => {
-      const s = parseFloat(item.stok) || 0
-      if (s <= 0) vel[item.idUnik] = 'DEAD'
-      else if (s < 50) vel[item.idUnik] = 'SLOW'
-      else if (s < 200) vel[item.idUnik] = 'MEDIUM'
-      else vel[item.idUnik] = 'FAST'
-    })
-    itemVelocity.value = vel
+  // === FITUR AUDIT GLOBAL HARMONIS (ANTI-BENTROK 3 FITUR) ===
+  const jalankanAudit = async () => {
+    if (isAuditing) return
+    isAuditing = true
+    
+    try {
+      const [snapM, snapH] = await Promise.all([
+        get(dbRef(db, 'stok_benang')),
+        get(dbRef(db, 'riwayat_transaksi'))
+      ])
+      
+      const masters = snapM.val() || {}
+      const histories = snapH.val() || {}
+      const updates = {}
+
+      Object.keys(masters).forEach(parentId => {
+        let totalStok = Number(masters[parentId].stokAwal) || 0
+        const logs = histories[parentId] ? Object.values(histories[parentId]) : []
+        logs.sort((a, b) => new Date(a.tanggal) - new Date(b.tanggal))
+
+        // 1. Ambil snapshot pembagian blok riil yang ada saat ini di database
+        const bloksTemp = { ...(masters[parentId].bloks || {}) }
+        
+        // 2. Hitung totalStok secara mutlak dari histori transaksi aplikasi
+        logs.forEach(l => {
+          const q = Number(l.qty) || 0
+          const rawBlok = (l.blok || "").trim().toUpperCase()
+          let lokasi = (rawBlok === "" || rawBlok === "TANPA LOKASI") ? "Tanpa Lokasi" : rawBlok
+
+          if (l.tipe === 'MASUK') {
+            totalStok += q
+          } 
+          else if (l.tipe === 'KELUAR') {
+            totalStok -= q
+          } 
+          else if (l.tipe === 'OPNAME') {
+            // Jika ada record opname global atau opname per blok, riwayat memegang total penyesuaian baru
+            if (lokasi !== "Tanpa Lokasi") {
+              bloksTemp[lokasi] = q // Kunci nilai opname spesifik pada blok tersebut
+            }
+            
+            // Kalkulasi ulang totalStok mengikuti dampak log opname
+            // Kita hitung berdasarkan log transaksi yang terekam aman di riwayat
+            const logStokAkhir = Number(l.stokAkhir)
+            if (!isNaN(logStokAkhir)) {
+              totalStok = logStokAkhir
+            }
+          }
+          
+          updates[`riwayat_transaksi/${parentId}/${l.trxId}/stokAkhir`] = parseFloat(totalStok.toFixed(2))
+        })
+
+        // 3. Selaraskan distribusi blok hasil Mutasi Manual & Opname Blok dengan Total Stok Baru
+        // Hitung total berat yang saat ini sudah dikunci di dalam blok-blok fisik (selain Tanpa Lokasi)
+        const totalDiBlokFisik = Object.entries(bloksTemp)
+          .filter(([nama]) => nama !== 'Tanpa Lokasi' && nama !== '')
+          .reduce((sum, [_, qty]) => sum + (parseFloat(qty) || 0), 0)
+
+        // Sisa dari total stok dikurangi alokasi blok fisik akan otomatis dibuang ke "Tanpa Lokasi"
+        let sisaTanpaLokasi = totalStok - totalDiBlokFisik
+        
+        if (sisaTanpaLokasi > 0.005) {
+          bloksTemp['Tanpa Lokasi'] = parseFloat(sisaTanpaLokasi.toFixed(2))
+        } else {
+          // Jika minus (akibat pengeluaran barang belum dialokasikan) atau nol, bersihkan badge Tanpa Lokasi
+          delete bloksTemp['Tanpa Lokasi']
+        }
+
+        // 4. Bersihkan blok yang nilainya 0 atau kosong agar database tetap bersih
+        Object.keys(bloksTemp).forEach(b => {
+          if (Math.abs(bloksTemp[b]) <= 0.001 || bloksTemp[b] < 0) {
+            delete bloksTemp[b]
+          } else {
+            bloksTemp[b] = parseFloat(bloksTemp[b].toFixed(2))
+          }
+        })
+
+        // 5. Daftarkan antrean pembaruan ke Firebase
+        updates[`stok_benang/${parentId}/stok`] = parseFloat(totalStok.toFixed(2))
+        updates[`stok_benang/${parentId}/bloks`] = Object.keys(bloksTemp).length > 0 ? bloksTemp : null
+      })
+
+      // Jalankan seluruh pembaruan secara atomic (serentak)
+      await update(dbRef(db), updates)
+      console.log("Audit Global Harmonis Berhasil Selesai.")
+    } catch (e) {
+      console.error("Audit Gagal:", e)
+    } finally {
+      isAuditing = false
+    }
   }
 
-  const kirimTransaksi = async (idUnik, tipe, qty, ket, blokNama) => {
+  // === FITUR TRANSAKSI MASUK, KELUAR, DAN OPNAME JALUR UTAMA ===
+  const kirimTransaksi = async (idUnik, tipe, qty, ket, lokasiBaru) => {
     const item = dbStok.value.find(x => x.idUnik === idUnik)
-    if (!item) throw new Error('Data Barang tidak ditemukan di sistem.')
+    if (!item) return
     
-    const q = parseFloat(qty)
-    let sLama = parseFloat(item.stok) || 0
-    let bloks = { ...(item.bloks || {}) }
+    const sLama = Number(item.stok) || 0
+    const bloks = { ...(item.bloks || {}) }
+    
+    const rawBlok = (lokasiBaru || "").trim().toUpperCase()
+    let blokNama = (rawBlok === "" || rawBlok === "TANPA LOKASI") ? "Tanpa Lokasi" : rawBlok
+
     let stokBlokLama = parseFloat(bloks[blokNama] || 0)
     let sBaru = sLama
 
     if (tipe === 'MASUK') {
-      sBaru = sLama + q
-      if (blokNama) bloks[blokNama] = stokBlokLama + q
-    } else if (tipe === 'KELUAR') {
-      sBaru = sLama - q
-      if (blokNama) bloks[blokNama] = stokBlokLama - q
-    } else if (tipe === 'OPNAME') {
-      if (blokNama) {
-        const selisih = q - stokBlokLama
-        sBaru = sLama + selisih
-        bloks[blokNama] = q
-      } else {
-        sBaru = q
-      }
+      sBaru = sLama + qty
+      bloks[blokNama] = stokBlokLama + qty
+    } 
+    else if (tipe === 'KELUAR') {
+      sBaru = sLama - qty
+      bloks[blokNama] = stokBlokLama - qty
+    } 
+    else if (tipe === 'OPNAME') {
+      // Logika Opname: Set nilai baru pada blok tujuan, lalu sesuaikan stok total globalnya
+      const selisih = qty - stokBlokLama
+      sBaru = sLama + selisih
+      bloks[blokNama] = qty
     }
 
     sBaru = parseFloat(sBaru.toFixed(2))
-    if (blokNama) {
-      bloks[blokNama] = parseFloat(bloks[blokNama].toFixed(2))
-      if (bloks[blokNama] <= 0) delete bloks[blokNama]
-    }
+    
+    Object.keys(bloks).forEach(b => {
+      if (Math.abs(bloks[b]) <= 0.001) delete bloks[b]
+      else bloks[b] = parseFloat(bloks[b].toFixed(2))
+    })
 
-    const iso = new Date().toISOString()
-    const trxId = 'TRX_' + Date.now()
+    const now = new Date()
+    const trxId = 'TRX_' + now.getTime()
     const updates = {}
-
+    
     updates[`stok_benang/${idUnik}/stok`] = sBaru
-    updates[`stok_benang/${idUnik}/bloks`] = Object.keys(bloks).length ? bloks : null
-    updates[`stok_benang/${idUnik}/tglUpdate`] = iso
+    updates[`stok_benang/${idUnik}/bloks`] = Object.keys(bloks).length > 0 ? bloks : null
+    updates[`stok_benang/${idUnik}/tglUpdate`] = now.toISOString()
     
     updates[`riwayat_transaksi/${idUnik}/${trxId}`] = {
       trxId,
-      kodeErp: item.kodeErp,
-      tipe,
-      qty: q,
-      blok: blokNama || '',
+      qty: qty, 
       stokAkhir: sBaru,
-      keterangan: (ket || '').toUpperCase(),
-      tanggal: iso
+      tanggal: now.toISOString(),
+      tipe,
+      blok: lokasiBaru || "", 
+      keterangan: ket
     }
-
+    
     await update(dbRef(db), updates)
   }
 
+  // === FITUR MUTASI: PINDAH BLOK MANUAL (BEBAS DARI GEJALA TIMPA AUDIT) ===
   const kirimMutasi = async (idUnik, qty, blokAsal, blokTujuan) => {
-    const item = dbStok.value.find(x => x.idUnik === idUnik)
-    if (!item) throw new Error('Item tidak ditemukan.')
-    
-    const q = parseFloat(qty)
-    let bloks = { ...(item.bloks || {}) }
-    
-    if (blokAsal !== 'Tanpa Lokasi') {
-      let stokAsal = parseFloat(bloks[blokAsal] || 0)
-      bloks[blokAsal] = parseFloat((stokAsal - q).toFixed(2))
-      if (bloks[blokAsal] <= 0) delete bloks[blokAsal]
-    }
+    const snap = await get(dbRef(db, `stok_benang/${idUnik}`))
+    const item = snap.val()
+    if (!item) return
 
-    if (blokTujuan !== 'Tanpa Lokasi') {
-      let stokTujuan = parseFloat(bloks[blokTujuan] || 0)
-      bloks[blokTujuan] = parseFloat((stokTujuan + q).toFixed(2))
-    }
+    const bloks = { ...(item.bloks || {}) }
+    const asal = (blokAsal || "").trim().toUpperCase() || "Tanpa Lokasi"
+    const tujuan = (blokTujuan || "").trim().toUpperCase() || "Tanpa Lokasi"
 
-    const iso = new Date().toISOString()
-    const trxId = 'MUT_' + Date.now()
+    bloks[asal] = parseFloat(parseFloat(bloks[asal] || 0).toFixed(2)) - qty
+    bloks[tujuan] = parseFloat(parseFloat(bloks[tujuan] || 0).toFixed(2)) + qty
+
+    Object.keys(bloks).forEach(b => {
+      if (Math.abs(bloks[b]) <= 0.001) delete bloks[b]
+      else bloks[b] = parseFloat(bloks[b].toFixed(2))
+    })
+
     const updates = {}
-
-    updates[`stok_benang/${idUnik}/bloks`] = Object.keys(bloks).length ? bloks : null
-    updates[`stok_benang/${idUnik}/tglUpdate`] = iso
-    
-    updates[`riwayat_transaksi/${idUnik}/${trxId}`] = {
-      trxId,
-      kodeErp: item.kodeErp,
-      tipe: 'MUTASI',
-      qty: q,
-      blok: `${blokAsal} -> ${blokTujuan}`,
-      stokAkhir: parseFloat(item.stok) || 0,
-      keterangan: `PINDAH LOKASI FISIK`,
-      tanggal: iso
-    }
+    updates[`stok_benang/${idUnik}/bloks`] = Object.keys(bloks).length > 0 ? bloks : null
+    updates[`stok_benang/${idUnik}/tglUpdate`] = new Date().toISOString()
 
     await update(dbRef(db), updates)
   }
 
-  const jalankanAudit = async () => {
-    const snapStok = await get(dbRef(db, 'stok_benang'))
-    const snapHist = await get(dbRef(db, 'riwayat_transaksi'))
-    
-    if (!snapStok.exists() || !snapHist.exists()) return
-
-    const stokData = snapStok.val()
-    const histData = snapHist.val()
-    const updates = {}
-
-    for (const idUnik in stokData) {
-      const itemHist = histData[idUnik]
-      if (!itemHist) continue
-
-      let totalStok = 0
-      let bloksTemp = {}
-
-      const logs = Object.values(itemHist).sort((a, b) => new Date(a.tanggal) - new Date(b.tanggal))
-
-      logs.forEach(l => {
-        const q = parseFloat(l.qty) || 0
-        const lokasi = l.blok || ''
-
-        if (l.tipe === 'MASUK') {
-          totalStok += q
-          if (lokasi && lokasi !== 'Tanpa Lokasi') {
-            bloksTemp[lokasi] = (bloksTemp[lokasi] || 0) + q
-          }
-        } 
-        else if (l.tipe === 'KELUAR') {
-          totalStok -= q
-          if (lokasi && lokasi !== 'Tanpa Lokasi') {
-            bloksTemp[lokasi] = (bloksTemp[lokasi] || 0) - q
-          }
-        } 
-        else if (l.tipe === 'OPNAME') {
-          if (lokasi && lokasi !== 'Tanpa Lokasi') {
-            const lama = bloksTemp[lokasi] || 0
-            totalStok += (q - lama)
-            bloksTemp[lokasi] = q
-          } else {
-            totalStok = q
-          }
-        } 
-        else if (l.tipe === 'MUTASI') {
-           if (lokasi.includes('->')) {
-              const [asal, tujuan] = lokasi.split('->').map(s => s.trim())
-              if (asal !== 'Tanpa Lokasi') bloksTemp[asal] = (bloksTemp[asal] || 0) - q
-              if (tujuan !== 'Tanpa Lokasi') bloksTemp[tujuan] = (bloksTemp[tujuan] || 0) + q
-           }
-        }
-      })
-
-      for (const key in bloksTemp) {
-        bloksTemp[key] = parseFloat(bloksTemp[key].toFixed(2))
-        if (bloksTemp[key] <= 0) delete bloksTemp[key]
-      }
-      totalStok = parseFloat(totalStok.toFixed(2))
-
-      updates[`stok_benang/${idUnik}/stok`] = totalStok
-      updates[`stok_benang/${idUnik}/bloks`] = Object.keys(bloksTemp).length ? bloksTemp : null
-    }
-
-    if (Object.keys(updates).length > 0) {
-      await update(dbRef(db), updates)
-    }
-  }
-
-  return { refreshData, kirimTransaksi, kirimMutasi, jalankanAudit }
+  return { refreshData, jalankanAudit, kirimTransaksi, kirimMutasi } 
 }

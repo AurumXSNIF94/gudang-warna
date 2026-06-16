@@ -112,7 +112,7 @@ let unsubscribe = null
 const isAdmin = computed(() => currentRole.value === 'admin')
 const activeItem = computed(() => dbStok.value.find(x => x.idUnik === activeHistId.value))
 const months = computed(() => Object.keys(allLogs.value).sort((a, b) => b.localeCompare(a)))
-const currentLogs = computed(() => (allLogs.value[activeMonth.value] || []).slice().reverse())
+const currentLogs = computed(() => (allLogs.value[activeMonth.value] || []))
 
 const totalMasukBulanIni = computed(() => {
   return currentLogs.value
@@ -141,13 +141,20 @@ const loadHistoryData = (id) => {
   unsubscribe = onValue(dbRef(db, `riwayat_transaksi/${id}`), snap => {
     loadingHist.value = false
     const data = snap.val() || {}
-    const grouped = {}
     
-    Object.values(data).sort((a, b) => new Date(a.tanggal) - new Date(b.tanggal)).forEach(r => {
-      const finalBal = r.stokAkhir !== undefined ? parseFloat(r.stokAkhir) : 0
+    // Urutkan dari yang PALING BARU ke yang LAMA
+    const logsDesc = Object.values(data).sort((a, b) => new Date(b.tanggal) - new Date(a.tanggal))
+    
+    logsDesc.forEach(r => {
+      // BACA STOK AKHIR MURNI DARI DATABASE 
+      r.calculatedBal = r.stokAkhir !== undefined ? parseFloat(r.stokAkhir) : 0
+    })
+
+    const grouped = {}
+    logsDesc.forEach(r => {
       const key = (r.tanggal || '').slice(0, 7)
       if (!grouped[key]) grouped[key] = []
-      grouped[key].push({ ...r, calculatedBal: finalBal })
+      grouped[key].push(r)
     })
     
     allLogs.value = grouped

@@ -28,7 +28,6 @@
         </div>
       </div>
 
-      <!-- RINGKASAN TOTAL IN & OUT BULANAN -->
       <div v-if="currentLogs.length" class="px-3 pt-2">
         <div class="summary-box d-flex justify-content-between align-items-center shadow-sm">
           <div class="text-center flex-fill border-end border-light">
@@ -47,6 +46,7 @@
           <div class="spinner-border text-primary"></div>
         </div>
         
+        <!-- HAPUS .slice().reverse() karena data sudah diurutkan dari script -->
         <template v-else-if="currentLogs.length">
           <div v-for="r in currentLogs" :key="r.trxId" class="feed-item">
             <div class="feed-time">
@@ -66,7 +66,6 @@
                   </button>
                 </div>
                 
-                <!-- LOGIKA BARU: Jika MASUK atau RETUR tampilkan + -->
                 <span class="fw-bold fs-6" :class="`text-${r.tipe.toLowerCase()}`">
                   {{ (r.tipe === 'MASUK' || r.tipe === 'RETUR') ? '+' : r.tipe === 'KELUAR' ? '-' : '' }}{{ fmt(r.qty) }} Kg
                 </span>
@@ -114,11 +113,11 @@ let unsubscribe = null
 const isAdmin = computed(() => currentRole.value === 'admin')
 const activeItem = computed(() => dbStok.value.find(x => x.idUnik === activeHistId.value))
 const months = computed(() => Object.keys(allLogs.value).sort((a, b) => b.localeCompare(a)))
-const currentLogs = computed(() => (allLogs.value[activeMonth.value] || []).slice().reverse())
+const currentLogs = computed(() => (allLogs.value[activeMonth.value] || []))
 
 const totalMasukBulanIni = computed(() => {
   return currentLogs.value
-    .filter(r => r.tipe === 'MASUK' || r.tipe === 'RETUR') // LOGIKA BARU
+    .filter(r => r.tipe === 'MASUK' || r.tipe === 'RETUR')
     .reduce((sum, r) => sum + (parseFloat(r.qty) || 0), 0)
 })
 
@@ -143,13 +142,32 @@ const loadHistoryData = (id) => {
   unsubscribe = onValue(dbRef(db, `riwayat_transaksi/${id}`), snap => {
     loadingHist.value = false
     const data = snap.val() || {}
-    const grouped = {}
     
-    Object.values(data).sort((a, b) => new Date(a.tanggal) - new Date(b.tanggal)).forEach(r => {
-      const finalBal = r.stokAkhir !== undefined ? parseFloat(r.stokAkhir) : 0
+    // 1. Urutkan dari yang PALING BARU ke yang LAMA (Descending)
+    const logsDesc = Object.values(data).sort((a, b) => new Date(b.tanggal) - new Date(a.tanggal))
+    
+    // 2. Hitung Mundur Sisa Stok agar 100% Sesuai dengan Stok Asli
+    let currentStock = parseFloat(activeItem.value?.stok || 0)
+    
+    logsDesc.forEach(r => {
+      // Simpan Sisa Stok untuk ditampilkan di baris ini
+      r.calculatedBal = currentStock
+      
+      const q = parseFloat(r.qty) || 0
+      // Kembalikan efek stok untuk menghitung saldo SEBELUM transaksi ini terjadi
+      if (r.tipe === 'MASUK' || r.tipe === 'RETUR') {
+        currentStock -= q
+      } else if (r.tipe === 'KELUAR') {
+        currentStock += q
+      }
+    })
+
+    // 3. Kelompokkan per bulan
+    const grouped = {}
+    logsDesc.forEach(r => {
       const key = (r.tanggal || '').slice(0, 7)
       if (!grouped[key]) grouped[key] = []
-      grouped[key].push({ ...r, calculatedBal: finalBal })
+      grouped[key].push(r)
     })
     
     allLogs.value = grouped
@@ -200,22 +218,21 @@ onUnmounted(() => { if (unsubscribe) unsubscribe() })
 .hour { font-size: 0.65rem; }
 .feed-card { flex: 1; background: var(--bg-main); border-radius: 12px; padding: 12px 15px; border-left: 5px solid; }
 
-/* WARNA STATUS */
 .border-masuk { border-left-color: #10b981; }
 .border-keluar { border-left-color: #ef4444; }
 .border-opname { border-left-color: #f59e0b; }
-.border-retur { border-left-color: #8b5cf6; } /* UNGU UNTUK RETUR */
+.border-retur { border-left-color: #8b5cf6; }
 
 .text-masuk { color: #10b981; }
 .text-keluar { color: #ef4444; }
 .text-opname { color: #f59e0b; }
-.text-retur { color: #8b5cf6; } /* UNGU UNTUK RETUR */
+.text-retur { color: #8b5cf6; }
 
 .badge-soft { font-size: 0.6rem; font-weight: 800; padding: 3px 8px; border-radius: 5px; text-transform: uppercase; }
 .badge-soft-masuk { background: rgba(16, 185, 129, 0.1); color: #10b981; }
 .badge-soft-keluar { background: rgba(239, 68, 68, 0.1); color: #ef4444; }
 .badge-soft-opname { background: rgba(245, 158, 11, 0.1); color: #f59e0b; }
-.badge-soft-retur { background: rgba(139, 92, 246, 0.1); color: #8b5cf6; } /* UNGU UNTUK RETUR */
+.badge-soft-retur { background: rgba(139, 92, 246, 0.1); color: #8b5cf6; }
 
 .btn-close-custom { background: var(--bg-main); border: 1px solid var(--border-color); width: 32px; height: 32px; border-radius: 8px; color: var(--text-muted); display: flex; align-items: center; justify-content: center; }
 .btn-icon-edit { padding: 2px 6px; font-size: 0.65rem; border-radius: 4px; background: transparent; color: var(--text-muted); border: 1px solid var(--border-color); transition: all 0.2s; }

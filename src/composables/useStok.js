@@ -29,7 +29,6 @@ export function useStok() {
     })
   }
 
-  // === FITUR AUDIT GLOBAL HARMONIS (ANTI-BENTROK 3 FITUR) ===
   const jalankanAudit = async () => {
     if (isAuditing) return
     isAuditing = true
@@ -49,10 +48,8 @@ export function useStok() {
         const logs = histories[parentId] ? Object.values(histories[parentId]) : []
         logs.sort((a, b) => new Date(a.tanggal) - new Date(b.tanggal))
 
-        // 1. Ambil snapshot pembagian blok riil yang ada saat ini di database
-        const bloksTemp = { ...(masters[parentId].bloks || {}) }
+        const bloksTemp = {}
         
-        // 2. Hitung totalStok secara mutlak dari histori transaksi aplikasi
         logs.forEach(l => {
           const q = Number(l.qty) || 0
           const rawBlok = (l.blok || "").trim().toUpperCase()
@@ -60,60 +57,33 @@ export function useStok() {
 
           if (l.tipe === 'MASUK') {
             totalStok += q
+            bloksTemp[lokasi] = (bloksTemp[lokasi] || 0) + q
           } 
           else if (l.tipe === 'KELUAR') {
             totalStok -= q
+            bloksTemp[lokasi] = (bloksTemp[lokasi] || 0) - q
           } 
           else if (l.tipe === 'OPNAME') {
-            // Jika ada record opname global atau opname per blok, riwayat memegang total penyesuaian baru
-            if (lokasi !== "Tanpa Lokasi") {
-              bloksTemp[lokasi] = q // Kunci nilai opname spesifik pada blok tersebut
-            }
-            
-            // Kalkulasi ulang totalStok mengikuti dampak log opname
-            // Kita hitung berdasarkan log transaksi yang terekam aman di riwayat
-            const logStokAkhir = Number(l.stokAkhir)
-            if (!isNaN(logStokAkhir)) {
-              totalStok = logStokAkhir
-            }
+            const stokBlokLama = parseFloat(bloksTemp[lokasi] || 0)
+            const selisih = q - stokBlokLama
+            totalStok += selisih
+            bloksTemp[lokasi] = q
           }
           
           updates[`riwayat_transaksi/${parentId}/${l.trxId}/stokAkhir`] = parseFloat(totalStok.toFixed(2))
         })
 
-        // 3. Selaraskan distribusi blok hasil Mutasi Manual & Opname Blok dengan Total Stok Baru
-        // Hitung total berat yang saat ini sudah dikunci di dalam blok-blok fisik (selain Tanpa Lokasi)
-        const totalDiBlokFisik = Object.entries(bloksTemp)
-          .filter(([nama]) => nama !== 'Tanpa Lokasi' && nama !== '')
-          .reduce((sum, [_, qty]) => sum + (parseFloat(qty) || 0), 0)
-
-        // Sisa dari total stok dikurangi alokasi blok fisik akan otomatis dibuang ke "Tanpa Lokasi"
-        let sisaTanpaLokasi = totalStok - totalDiBlokFisik
-        
-        if (sisaTanpaLokasi > 0.005) {
-          bloksTemp['Tanpa Lokasi'] = parseFloat(sisaTanpaLokasi.toFixed(2))
-        } else {
-          // Jika minus (akibat pengeluaran barang belum dialokasikan) atau nol, bersihkan badge Tanpa Lokasi
-          delete bloksTemp['Tanpa Lokasi']
-        }
-
-        // 4. Bersihkan blok yang nilainya 0 atau kosong agar database tetap bersih
         Object.keys(bloksTemp).forEach(b => {
-          if (Math.abs(bloksTemp[b]) <= 0.001 || bloksTemp[b] < 0) {
-            delete bloksTemp[b]
-          } else {
-            bloksTemp[b] = parseFloat(bloksTemp[b].toFixed(2))
-          }
+          if (Math.abs(bloksTemp[b]) <= 0.001) delete bloksTemp[b]
+          else bloksTemp[b] = parseFloat(bloksTemp[b].toFixed(2))
         })
 
-        // 5. Daftarkan antrean pembaruan ke Firebase
         updates[`stok_benang/${parentId}/stok`] = parseFloat(totalStok.toFixed(2))
         updates[`stok_benang/${parentId}/bloks`] = Object.keys(bloksTemp).length > 0 ? bloksTemp : null
       })
 
-      // Jalankan seluruh pembaruan secara atomic (serentak)
       await update(dbRef(db), updates)
-      console.log("Audit Global Harmonis Berhasil Selesai.")
+      console.log("Audit Selesai.")
     } catch (e) {
       console.error("Audit Gagal:", e)
     } finally {
@@ -121,7 +91,6 @@ export function useStok() {
     }
   }
 
-  // === FITUR TRANSAKSI MASUK, KELUAR, DAN OPNAME JALUR UTAMA ===
   const kirimTransaksi = async (idUnik, tipe, qty, ket, lokasiBaru) => {
     const item = dbStok.value.find(x => x.idUnik === idUnik)
     if (!item) return
@@ -144,7 +113,6 @@ export function useStok() {
       bloks[blokNama] = stokBlokLama - qty
     } 
     else if (tipe === 'OPNAME') {
-      // Logika Opname: Set nilai baru pada blok tujuan, lalu sesuaikan stok total globalnya
       const selisih = qty - stokBlokLama
       sBaru = sLama + selisih
       bloks[blokNama] = qty
@@ -178,7 +146,7 @@ export function useStok() {
     await update(dbRef(db), updates)
   }
 
-  // === FITUR MUTASI: PINDAH BLOK MANUAL (BEBAS DARI GEJALA TIMPA AUDIT) ===
+  // === FITUR MUTASI: HANYA PINDAH LOKASI (TIDAK MASUK RIWAYAT) ===
   const kirimMutasi = async (idUnik, qty, blokAsal, blokTujuan) => {
     const snap = await get(dbRef(db, `stok_benang/${idUnik}`))
     const item = snap.val()
@@ -201,6 +169,7 @@ export function useStok() {
     updates[`stok_benang/${idUnik}/tglUpdate`] = new Date().toISOString()
 
     await update(dbRef(db), updates)
+    // Berhasil mutasi tanpa mengotori riwayat_transaksi!
   }
 
   return { refreshData, jalankanAudit, kirimTransaksi, kirimMutasi } 

@@ -10,6 +10,20 @@ let isListening = false
 let isAuditing = false 
 
 export function useStok() {
+  
+  // 1. Fungsi Velocity dihidupkan kembali agar label FAST/SLOW/DEAD jalan
+  const kalkulasiVelocity = (dataArray) => {
+    const vel = {}
+    dataArray.forEach(item => {
+      const s = parseFloat(item.stok) || 0
+      if (s <= 0) vel[item.idUnik] = 'DEAD'
+      else if (s < 50) vel[item.idUnik] = 'SLOW'
+      else if (s < 200) vel[item.idUnik] = 'MEDIUM'
+      else vel[item.idUnik] = 'FAST'
+    })
+    itemVelocity.value = vel
+  }
+
   const refreshData = () => {
     if (isListening) return
     isListening = true
@@ -25,6 +39,9 @@ export function useStok() {
         arr.sort((a, b) => (b.stok || 0) - (a.stok || 0))
       }
       dbStok.value = arr
+      
+      // Panggil perhitungan velocity setiap kali data di-refresh
+      kalkulasiVelocity(arr) 
       loading.value = false
     })
   }
@@ -79,7 +96,9 @@ export function useStok() {
         })
 
         updates[`stok_benang/${parentId}/stok`] = parseFloat(totalStok.toFixed(2))
-        updates[`stok_benang/${parentId}/bloks`] = Object.keys(bloksTemp).length > 0 ? bloksTemp : null
+        
+        // 🔥 BARIS INI DIMATIKAN AGAR PETA BLOK VISUAL TIDAK TERHAPUS OLEH AUDIT 🔥
+        // updates[`stok_benang/${parentId}/bloks`] = Object.keys(bloksTemp).length > 0 ? bloksTemp : null
       })
 
       await update(dbRef(db), updates)
@@ -169,7 +188,6 @@ export function useStok() {
     updates[`stok_benang/${idUnik}/tglUpdate`] = new Date().toISOString()
 
     await update(dbRef(db), updates)
-    // Berhasil mutasi tanpa mengotori riwayat_transaksi!
   }
 
   return { refreshData, jalankanAudit, kirimTransaksi, kirimMutasi } 

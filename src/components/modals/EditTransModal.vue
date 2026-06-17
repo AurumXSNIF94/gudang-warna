@@ -50,12 +50,12 @@
             <input type="text" class="form-control custom-input text-uppercase" v-model="keterangan">
           </div>
 
-          <div class="d-grid gap-2">
+          <div class="d-flex flex-column gap-3 mt-2">
             <button type="button" class="btn btn-lg fw-bold shadow-sm save-btn"
                     :disabled="saving" @click="simpan">
               <i class="fas fa-save me-2"></i> {{ saving ? 'Menyimpan...' : 'UPDATE TRANSAKSI' }}
             </button>
-            <button type="button" class="btn btn-outline-danger fw-bold delete-btn"
+            <button type="button" class="btn btn-outline-danger fw-bold delete-btn py-2"
                     :disabled="saving" @click="hapus">
               <i class="fas fa-trash-alt me-1"></i> HAPUS TRANSAKSI
             </button>
@@ -128,7 +128,6 @@ const hapus = async () => {
   if (!result.isConfirmed) return
   
   saving.value = true
-  
   const itemID = trx.parentId || trx.idUnik 
   
   try {
@@ -153,6 +152,13 @@ const hapus = async () => {
 .bg-warning-subtle { background: rgba(245, 158, 11, 0.1); color: #f59e0b; }
 .custom-input { background: var(--bg-main); border: 1px solid var(--border-color); color: var(--text-main); padding: 12px; border-radius: 10px; }
 .save-btn { background: #f59e0b; color: #000; border-radius: 12px; }
-.delete-btn { border-radius: 12px; border: none; color: #ef4444; }
+.delete-btn { border-radius: 12px; border: 1px solid #ef4444; color: #ef4444; }
+.delete-btn:hover { background: #ef4444; color: white; }
 .btn-close-custom { opacity: 0.5; }
+</style>
+
+<style>
+.swal2-container {
+  z-index: 9999 !important;
+}
 </style>

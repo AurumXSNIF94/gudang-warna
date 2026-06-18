@@ -16,6 +16,12 @@
     <template v-else>
       <NavBar />
       <div class="container pb-5">
+        
+        <!-- 🔥 TOMBOL SAPU BERSIH (TEMPORARY) 🔥 -->
+        <button class="btn btn-danger fw-bold shadow-sm my-3 w-100" @click="sapuBersihDatabase">
+          <i class="fas fa-broom me-2"></i> BERSIHKAN DATABASE DARI BLOK SILUMAN
+        </button>
+
         <StickySearch />
         <div class="row g-4 mt-2">
           <CardItem
@@ -92,7 +98,10 @@ import { showSuratJalanModal } from './composables/useSuratJalan'
 import { showBlokModal } from './composables/useBlok'
 
 const { initAuth } = useAuth()
-const { refreshData } = useStok()
+
+// 🔥 KITA PANGGIL sapuBersihDatabase DI SINI 🔥
+const { refreshData, sapuBersihDatabase } = useStok()
+
 const { bukaRiwayat } = useHist()
 const { bukaTransaksi } = useTrans()
 

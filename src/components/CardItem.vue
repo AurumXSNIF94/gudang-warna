@@ -87,7 +87,6 @@ const props = defineProps({
   role: String
 })
 
-// Dikembalikan hanya ke 'transaksi' dan 'riwayat'
 defineEmits(['transaksi', 'riwayat'])
 
 const fmt = n => Number(n || 0).toLocaleString('id-ID', {
@@ -108,36 +107,61 @@ const jenisBadgeColor = computed(() => {
   return 'badge-soft-secondary'
 })
 
+// 🔥 DESAIN VELOCITY BARU (ICONS + COLORS)
 const velocityBadge = computed(() => {
   const v = props.velocity
-  if (v === 'FAST')   return '<span class="badge-soft badge-soft-danger ms-1 fw-bold"><i class="fas fa-fire me-1"></i>FAST</span>'
-  if (v === 'MEDIUM') return '<span class="badge-soft badge-soft-success ms-1 fw-bold">MEDIUM</span>'
-  if (v === 'SLOW')   return '<span class="badge-soft badge-soft-warning ms-1 fw-bold">SLOW</span>'
-  return '<span class="badge-soft badge-soft-secondary ms-1 fw-bold">DEAD</span>'
+  if (v === 'FAST') {
+    return `<span class="badge-soft badge-soft-danger ms-1 fw-bold fast-pulse border border-danger">
+              <i class="fas fa-fire me-1 text-danger"></i>FAST MOVING
+            </span>`
+  }
+  if (v === 'MEDIUM') {
+    return `<span class="badge-soft badge-soft-success ms-1 fw-bold">
+              <i class="fas fa-arrow-trend-up me-1"></i>MEDIUM
+            </span>`
+  }
+  if (v === 'SLOW') {
+    return `<span class="badge-soft badge-soft-warning ms-1 fw-bold">
+              <i class="fas fa-hourglass-half me-1"></i>SLOW MOVING
+            </span>`
+  }
+  // Default: DEAD
+  return `<span class="badge-soft badge-soft-secondary ms-1 fw-bold opacity-75">
+            <i class="fas fa-snowflake me-1"></i>DEAD STOCK
+          </span>`
 })
 
+// 🔥 RUMUS MATEMATIKA GALAK (Anti-Siluman)
 const daftarBlok = computed(() => {
   const bloks = props.item?.bloks
   if (!bloks) return []
   return Object.entries(bloks)
-    .filter(([nama, qty]) => parseFloat(qty) > 0 && nama.trim().toUpperCase() !== 'TANPA LOKASI')
+    .filter(([nama, qty]) => {
+      if (!nama) return false
+      const n = String(nama).trim().toUpperCase()
+      // Syarat murni: tidak ada unsur Tanpa Lokasi/Kosong/Null
+      return parseFloat(qty) > 0 && n !== '' && n !== 'NULL' && n !== 'UNDEFINED' && !n.includes('TANPA LOKASI')
+    })
     .map(([nama, qty]) => ({ nama, qty: parseFloat(qty) }))
 })
 
 const sisaTanpaBlok = computed(() => {
   const bloks = props.item?.bloks || {}
-  let qtyEksplisit = 0
+  const totalStok = parseFloat(props.item?.stok) || 0
   
+  let stokDiRakFisik = 0
   Object.entries(bloks).forEach(([nama, qty]) => {
-    if (nama.trim().toUpperCase() === 'TANPA LOKASI') qtyEksplisit += parseFloat(qty) || 0
+    if (!nama) return
+    const n = String(nama).trim().toUpperCase()
+    // Hitung jumlah di rak murni saja
+    if (n !== '' && n !== 'NULL' && n !== 'UNDEFINED' && !n.includes('TANPA LOKASI')) {
+      stokDiRakFisik += (parseFloat(qty) || 0)
+    }
   })
 
-  const totalStok = parseFloat(props.item?.stok) || 0
-  const semuaStokDiBlok = Object.values(bloks).reduce((s, b) => s + (parseFloat(b) || 0), 0)
-  let selisih = totalStok - semuaStokDiBlok
-  if (selisih < 0.01) selisih = 0 
-
-  return qtyEksplisit + selisih
+  // Hitung selisih
+  let selisih = totalStok - stokDiRakFisik
+  return selisih > 0.001 ? selisih : 0
 })
 </script>
 
@@ -218,4 +242,15 @@ const sisaTanpaBlok = computed(() => {
 
 .btn-audit-action { background: rgba(245, 158, 11, 0.1); color: #d97706; border: 1px solid rgba(245, 158, 11, 0.2); }
 .btn-audit-action:hover { background: rgba(245, 158, 11, 0.2); }
+
+/* 🔥 EFEK DENYUT UNTUK FAST MOVING 🔥 */
+.fast-pulse {
+  animation: pulse-danger 2s infinite;
+}
+
+@keyframes pulse-danger {
+  0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
+  70% { box-shadow: 0 0 0 6px rgba(239, 68, 68, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+}
 </style>

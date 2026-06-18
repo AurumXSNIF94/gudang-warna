@@ -9,8 +9,23 @@
         <div class="d-flex align-items-center gap-1 flex-wrap justify-content-end">
           <span :class="['badge-soft', jenisBadgeColor]">{{ item.jenis }}</span>
           <span class="badge-soft badge-soft-warning fw-bold">{{ item.grade || '-' }}</span>
-          <!-- Label Perputaran Barang (Velocity) -->
-          <span v-if="velocity" v-html="velocityBadge"></span>
+          
+          <!-- 🔥 LABEL VELOCITY DIPINDAH KE SINI (Lebih Rapi & CSS Berfungsi) 🔥 -->
+          <template v-if="velocity">
+            <span v-if="velocity === 'FAST'" class="badge-soft badge-soft-danger ms-1 fw-bold fast-pulse">
+              <i class="fas fa-fire me-1"></i>FAST MOVING
+            </span>
+            <span v-else-if="velocity === 'MEDIUM'" class="badge-soft badge-soft-success ms-1 fw-bold">
+              <i class="fas fa-arrow-trend-up me-1"></i>MEDIUM
+            </span>
+            <span v-else-if="velocity === 'SLOW'" class="badge-soft badge-soft-warning ms-1 fw-bold">
+              <i class="fas fa-hourglass-half me-1"></i>SLOW MOVING
+            </span>
+            <span v-else class="badge-soft badge-soft-secondary ms-1 fw-bold opacity-75">
+              <i class="fas fa-snowflake me-1"></i>DEAD STOCK
+            </span>
+          </template>
+
         </div>
       </div>
 
@@ -108,31 +123,6 @@ const jenisBadgeColor = computed(() => {
   return 'badge-soft-secondary'
 })
 
-// 🔥 DESAIN VELOCITY BARU (ICONS + COLORS)
-const velocityBadge = computed(() => {
-  const v = props.velocity
-  if (v === 'FAST') {
-    return `<span class="badge-soft badge-soft-danger ms-1 fw-bold fast-pulse border border-danger">
-              <i class="fas fa-fire me-1 text-danger"></i>FAST MOVING
-            </span>`
-  }
-  if (v === 'MEDIUM') {
-    return `<span class="badge-soft badge-soft-success ms-1 fw-bold">
-              <i class="fas fa-arrow-trend-up me-1"></i>MEDIUM
-            </span>`
-  }
-  if (v === 'SLOW') {
-    return `<span class="badge-soft badge-soft-warning ms-1 fw-bold">
-              <i class="fas fa-hourglass-half me-1"></i>SLOW MOVING
-            </span>`
-  }
-  // Default: DEAD
-  return `<span class="badge-soft badge-soft-secondary ms-1 fw-bold opacity-75">
-            <i class="fas fa-snowflake me-1"></i>DEAD STOCK
-          </span>`
-})
-
-// 🔥 RUMUS MATEMATIKA GALAK (Anti-Siluman)
 const daftarBlok = computed(() => {
   const bloks = props.item?.bloks
   if (!bloks) return []
@@ -140,7 +130,6 @@ const daftarBlok = computed(() => {
     .filter(([nama, qty]) => {
       if (!nama) return false
       const n = String(nama).trim().toUpperCase()
-      // Syarat murni: tidak ada unsur Tanpa Lokasi/Kosong/Null
       return parseFloat(qty) > 0 && n !== '' && n !== 'NULL' && n !== 'UNDEFINED' && !n.includes('TANPA LOKASI')
     })
     .map(([nama, qty]) => ({ nama, qty: parseFloat(qty) }))
@@ -154,13 +143,11 @@ const sisaTanpaBlok = computed(() => {
   Object.entries(bloks).forEach(([nama, qty]) => {
     if (!nama) return
     const n = String(nama).trim().toUpperCase()
-    // Hitung jumlah di rak murni saja
     if (n !== '' && n !== 'NULL' && n !== 'UNDEFINED' && !n.includes('TANPA LOKASI')) {
       stokDiRakFisik += (parseFloat(qty) || 0)
     }
   })
 
-  // Hitung selisih
   let selisih = totalStok - stokDiRakFisik
   return selisih > 0.001 ? selisih : 0
 })
@@ -244,14 +231,14 @@ const sisaTanpaBlok = computed(() => {
 .btn-audit-action { background: rgba(245, 158, 11, 0.1); color: #d97706; border: 1px solid rgba(245, 158, 11, 0.2); }
 .btn-audit-action:hover { background: rgba(245, 158, 11, 0.2); }
 
-/* 🔥 EFEK DENYUT UNTUK FAST MOVING (Tembus v-html) 🔥 */
-:global(.fast-pulse) {
+/* 🔥 EFEK DENYUT KEMBALI NORMAL DAN MULUS 🔥 */
+.fast-pulse {
   animation: pulse-danger 2s infinite;
 }
 
 @keyframes pulse-danger {
-  0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
-  70% { box-shadow: 0 0 0 6px rgba(239, 68, 68, 0); }
+  0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.5); }
+  70% { box-shadow: 0 0 0 8px rgba(239, 68, 68, 0); }
   100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
 }
 </style>

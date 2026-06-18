@@ -9,6 +9,7 @@
         <div class="d-flex align-items-center gap-1 flex-wrap justify-content-end">
           <span :class="['badge-soft', jenisBadgeColor]">{{ item.jenis }}</span>
           <span class="badge-soft badge-soft-warning fw-bold">{{ item.grade || '-' }}</span>
+          <!-- Label Perputaran Barang (Velocity) -->
           <span v-if="velocity" v-html="velocityBadge"></span>
         </div>
       </div>
@@ -243,8 +244,8 @@ const sisaTanpaBlok = computed(() => {
 .btn-audit-action { background: rgba(245, 158, 11, 0.1); color: #d97706; border: 1px solid rgba(245, 158, 11, 0.2); }
 .btn-audit-action:hover { background: rgba(245, 158, 11, 0.2); }
 
-/* 🔥 EFEK DENYUT UNTUK FAST MOVING 🔥 */
-.fast-pulse {
+/* 🔥 EFEK DENYUT UNTUK FAST MOVING (Tembus v-html) 🔥 */
+:global(.fast-pulse) {
   animation: pulse-danger 2s infinite;
 }
 

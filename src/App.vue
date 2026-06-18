@@ -18,7 +18,7 @@
       <div class="container pb-5">
         
         <!-- 🔥 TOMBOL SAPU BERSIH (TEMPORARY) 🔥 -->
-        <button class="btn btn-danger fw-bold shadow-sm my-3 w-100" @click="sapuBersihDatabase">
+<button v-if="currentRole === 'admin'" class="btn btn-danger fw-bold shadow-sm my-3 w-100" @click="sapuBersihDatabase">
           <i class="fas fa-broom me-2"></i> BERSIHKAN DATABASE DARI BLOK SILUMAN
         </button>
 

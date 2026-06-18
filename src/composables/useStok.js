@@ -11,16 +11,44 @@ let isAuditing = false
 
 export function useStok() {
   
-  const kalkulasiVelocity = (dataArray) => {
-    const vel = {}
-    dataArray.forEach(item => {
-      const s = parseFloat(item.stok) || 0
-      if (s <= 0) vel[item.idUnik] = 'DEAD'
-      else if (s < 500) vel[item.idUnik] = 'SLOW'
-      else if (s < 2900) vel[item.idUnik] = 'MEDIUM'
-      else vel[item.idUnik] = 'FAST'
-    })
-    itemVelocity.value = vel
+  // 🔥 RUMUS VELOCITY BARU: Hitung Turn-over (Barang Keluar) 30 Hari Terakhir
+  const kalkulasiVelocity = async (dataArray) => {
+    try {
+      const snapH = await get(dbRef(db, 'riwayat_transaksi'))
+      const histories = snapH.val() || {}
+
+      // Mundurkan waktu 30 hari dari sekarang
+      const batasWaktu = new Date()
+      batasWaktu.setDate(batasWaktu.getDate() - 30)
+
+      const vel = {}
+      
+      dataArray.forEach(item => {
+        const id = item.idUnik
+        let totalKeluar30Hari = 0
+
+        if (histories[id]) {
+          Object.values(histories[id]).forEach(log => {
+            if (log.tipe === 'KELUAR') {
+              const tglTrx = new Date(log.tanggal)
+              if (tglTrx >= batasWaktu) {
+                totalKeluar30Hari += (parseFloat(log.qty) || 0)
+              }
+            }
+          })
+        }
+
+        // Klasifikasi label (silakan ubah angka 50 & 200 jika standar gudang lu beda)
+        if (totalKeluar30Hari <= 0) vel[id] = 'DEAD'
+        else if (totalKeluar30Hari < 500) vel[id] = 'SLOW'
+        else if (totalKeluar30Hari < 3600) vel[id] = 'MEDIUM'
+        else vel[id] = 'FAST'
+      })
+      
+      itemVelocity.value = vel
+    } catch (error) {
+      console.error("Gagal menghitung velocity:", error)
+    }
   }
 
   const refreshData = () => {
@@ -39,6 +67,7 @@ export function useStok() {
       }
       dbStok.value = arr
       
+      // Panggil hitungan perputaran barang di belakang layar
       kalkulasiVelocity(arr) 
       loading.value = false
     })
@@ -89,9 +118,6 @@ export function useStok() {
         })
 
         updates[`stok_benang/${parentId}/stok`] = parseFloat(totalStok.toFixed(2))
-        
-        // Peta Blok visual aman dari audit
-        // updates[`stok_benang/${parentId}/bloks`] = Object.keys(bloksTemp).length > 0 ? bloksTemp : null
       })
 
       await update(dbRef(db), updates)
@@ -103,7 +129,7 @@ export function useStok() {
     }
   }
 
-  // 🔥 HELPER BARU: Otomatis menolak dan membunuh "Tanpa Lokasi" agar tidak masuk database
+  // 🔥 HELPER: Otomatis membuang blok bernama Tanpa Lokasi/Kosong
   const bersihkanBlok = (bloksObj) => {
     Object.keys(bloksObj).forEach(b => {
       const upperB = String(b).trim().toUpperCase()
@@ -122,7 +148,7 @@ export function useStok() {
     const sLama = Number(item.stok) || 0
     const bloks = { ...(item.bloks || {}) }
     
-    // Gembok anti-siluman
+    // Gembok Anti Siluman
     const rawBlok = (lokasiBaru || "").trim().toUpperCase()
     let blokNama = (rawBlok === "" || rawBlok.includes("TANPA LOKASI")) ? "" : rawBlok
 
@@ -180,7 +206,6 @@ export function useStok() {
     const asal = (blokAsal || "").trim().toUpperCase()
     const tujuan = (blokTujuan || "").trim().toUpperCase()
 
-    // Gembok mutasi
     if (asal && !asal.includes("TANPA LOKASI")) {
       bloks[asal] = parseFloat(parseFloat(bloks[asal] || 0).toFixed(2)) - qty
     }
@@ -197,7 +222,7 @@ export function useStok() {
     await update(dbRef(db), updates)
   }
 
-  // 🔥 TOMBOL SAKTI: Sapu Bersih Database 🔥
+  // 🔥 ALAT SAPU BERSIH DATABASE 🔥
   const sapuBersihDatabase = async () => {
     try {
       const snap = await get(dbRef(db, 'stok_benang'))
@@ -238,6 +263,5 @@ export function useStok() {
     }
   }
 
-  // Pastikan sapuBersihDatabase di-export
   return { refreshData, jalankanAudit, kirimTransaksi, kirimMutasi, sapuBersihDatabase } 
 }

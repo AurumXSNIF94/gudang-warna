@@ -16,8 +16,8 @@ export function useStok() {
     dataArray.forEach(item => {
       const s = parseFloat(item.stok) || 0
       if (s <= 0) vel[item.idUnik] = 'DEAD'
-      else if (s < 50) vel[item.idUnik] = 'SLOW'
-      else if (s < 200) vel[item.idUnik] = 'MEDIUM'
+      else if (s < 500) vel[item.idUnik] = 'SLOW'
+      else if (s < 2900) vel[item.idUnik] = 'MEDIUM'
       else vel[item.idUnik] = 'FAST'
     })
     itemVelocity.value = vel

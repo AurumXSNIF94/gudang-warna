@@ -11,13 +11,11 @@ let isAuditing = false
 
 export function useStok() {
   
-  // 🔥 RUMUS VELOCITY BARU: Hitung Turn-over (Barang Keluar) 30 Hari Terakhir
   const kalkulasiVelocity = async (dataArray) => {
     try {
       const snapH = await get(dbRef(db, 'riwayat_transaksi'))
       const histories = snapH.val() || {}
 
-      // Mundurkan waktu 30 hari dari sekarang
       const batasWaktu = new Date()
       batasWaktu.setDate(batasWaktu.getDate() - 30)
 
@@ -38,7 +36,6 @@ export function useStok() {
           })
         }
 
-        // Klasifikasi label (silakan ubah angka 50 & 200 jika standar gudang lu beda)
         if (totalKeluar30Hari <= 0) vel[id] = 'DEAD'
         else if (totalKeluar30Hari < 500) vel[id] = 'SLOW'
         else if (totalKeluar30Hari < 3600) vel[id] = 'MEDIUM'
@@ -66,13 +63,12 @@ export function useStok() {
         arr.sort((a, b) => (b.stok || 0) - (a.stok || 0))
       }
       dbStok.value = arr
-      
-      // Panggil hitungan perputaran barang di belakang layar
       kalkulasiVelocity(arr) 
       loading.value = false
     })
   }
 
+  // 🔥 ENGINE AUDIT YANG SUDAH DIPERBAIKI (ANTI BUG OPNAME) 🔥
   const jalankanAudit = async () => {
     if (isAuditing) return
     isAuditing = true
@@ -108,10 +104,18 @@ export function useStok() {
             bloksTemp[lokasi] = (bloksTemp[lokasi] || 0) - q
           } 
           else if (l.tipe === 'OPNAME') {
-            const stokBlokLama = parseFloat(bloksTemp[lokasi] || 0)
-            const selisih = q - stokBlokLama
-            totalStok += selisih
-            bloksTemp[lokasi] = q
+            if (lokasi === 'Tanpa Lokasi') {
+              // 🔥 OPNAME GLOBAL: Paksa total stok jadi angka inputan, hapus semua memori rak
+              totalStok = q
+              for (let key in bloksTemp) delete bloksTemp[key]
+              if (q > 0) bloksTemp['Tanpa Lokasi'] = q 
+            } else {
+              // 🔥 OPNAME BLOK: Cuma ngurusin 1 blok tertentu aja
+              const stokBlokLama = parseFloat(bloksTemp[lokasi] || 0)
+              const selisih = q - stokBlokLama
+              totalStok += selisih
+              bloksTemp[lokasi] = q
+            }
           }
           
           updates[`riwayat_transaksi/${parentId}/${l.trxId}/stokAkhir`] = parseFloat(totalStok.toFixed(2))
@@ -129,7 +133,6 @@ export function useStok() {
     }
   }
 
-  // 🔥 HELPER: Otomatis membuang blok bernama Tanpa Lokasi/Kosong
   const bersihkanBlok = (bloksObj) => {
     Object.keys(bloksObj).forEach(b => {
       const upperB = String(b).trim().toUpperCase()
@@ -148,28 +151,30 @@ export function useStok() {
     const sLama = Number(item.stok) || 0
     const bloks = { ...(item.bloks || {}) }
     
-    // Gembok Anti Siluman
     const rawBlok = (lokasiBaru || "").trim().toUpperCase()
-    let blokNama = (rawBlok === "" || rawBlok.includes("TANPA LOKASI")) ? "" : rawBlok
+    let blokNama = (rawBlok === "" || rawBlok.includes("TANPA LOKASI")) ? "Tanpa Lokasi" : rawBlok
 
-    let stokBlokLama = parseFloat(bloks[blokNama] || 0)
     let sBaru = sLama
 
     if (tipe === 'MASUK') {
       sBaru = sLama + qty
-      if (blokNama) bloks[blokNama] = stokBlokLama + qty
+      bloks[blokNama] = (bloks[blokNama] || 0) + qty
     } 
     else if (tipe === 'KELUAR') {
       sBaru = sLama - qty
-      if (blokNama) bloks[blokNama] = stokBlokLama - qty
+      bloks[blokNama] = (bloks[blokNama] || 0) - qty
     } 
     else if (tipe === 'OPNAME') {
-      if (blokNama) {
-        const selisih = qty - stokBlokLama
-        sBaru = sLama + selisih
-        bloks[blokNama] = qty
+      if (blokNama === 'Tanpa Lokasi') {
+         // OPNAME GLOBAL
+         sBaru = qty
+         for (let k in bloks) delete bloks[k]
       } else {
-        sBaru = qty
+         // OPNAME BLOK
+         const stokBlokLama = parseFloat(bloks[blokNama] || 0)
+         const selisih = qty - stokBlokLama
+         sBaru = sLama + selisih
+         bloks[blokNama] = qty
       }
     }
 
@@ -222,7 +227,6 @@ export function useStok() {
     await update(dbRef(db), updates)
   }
 
-  // 🔥 ALAT SAPU BERSIH DATABASE 🔥
   const sapuBersihDatabase = async () => {
     try {
       const snap = await get(dbRef(db, 'stok_benang'))

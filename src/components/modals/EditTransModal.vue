@@ -72,8 +72,7 @@ import { ref as dbRef, update } from 'firebase/database'
 import { db } from '../../firebase'
 import { activeEditTrans } from '../../composables/useEditTrans'
 import { masterBlok } from '../../composables/useBlok'
-// 🔥 KITA IMPORT dbStok UNTUK BACA BLOK SAAT INI
-import { dbStok, useStok } from '../../composables/useStok' 
+import { useStok } from '../../composables/useStok' 
 
 const emit = defineEmits(['close', 'saved'])
 const { jalankanAudit } = useStok()
@@ -95,54 +94,25 @@ const simpan = async () => {
   saving.value = true
   
   const itemID = trx.parentId || trx.idUnik 
-  const item = dbStok.value.find(x => x.idUnik === itemID)
   
   try {
     const updates = {}
 
-    // ====== LOGIKA MATEMATIKA BLOK (PINTAR) ======
-    if (item) {
-      let bloks = { ...(item.bloks || {}) }
-      const oldQ = parseFloat(trx.qty) || 0
-      const oldB = trx.blok || ''
-      const newQ = parseFloat(qty.value) || 0
-      const newB = blok.value || ''
-
-      // 1. Cabut qty dari blok yang lama
-      if (oldB && oldB !== 'Tanpa Lokasi') {
-        if (trx.tipe === 'MASUK') bloks[oldB] = (parseFloat(bloks[oldB]) || 0) - oldQ
-        else if (trx.tipe === 'KELUAR') bloks[oldB] = (parseFloat(bloks[oldB]) || 0) + oldQ
-      }
-
-      // 2. Terapkan qty ke blok yang baru (atau blok yang sama dengan nilai baru)
-      if (newB && newB !== 'Tanpa Lokasi') {
-        if (tipe.value === 'MASUK') bloks[newB] = (parseFloat(bloks[newB]) || 0) + newQ
-        else if (tipe.value === 'KELUAR') bloks[newB] = (parseFloat(bloks[newB]) || 0) - newQ
-        else if (tipe.value === 'OPNAME') bloks[newB] = newQ
-      }
-
-      // 3. Bersihkan sisa koma dan hapus jika 0
-      Object.keys(bloks).forEach(k => {
-        bloks[k] = parseFloat(bloks[k].toFixed(2))
-        if (bloks[k] <= 0) delete bloks[k]
-      })
-
-      updates[`stok_benang/${itemID}/bloks`] = Object.keys(bloks).length ? bloks : null
-    }
-    // ===============================================
-
-    // Update data di buku riwayat
+    // 1. Update data di buku riwayat saja
     updates[`riwayat_transaksi/${itemID}/${trx.trxId}/tanggal`] = new Date(tanggal.value).toISOString()
     updates[`riwayat_transaksi/${itemID}/${trx.trxId}/tipe`] = tipe.value
     updates[`riwayat_transaksi/${itemID}/${trx.trxId}/qty`] = parseFloat(qty.value) || 0
-    updates[`riwayat_transaksi/${itemID}/${trx.trxId}/blok`] = blok.value
+    updates[`riwayat_transaksi/${itemID}/${trx.trxId}/blok`] = blok.value || "Tanpa Lokasi"
     updates[`riwayat_transaksi/${itemID}/${trx.trxId}/keterangan`] = keterangan.value.toUpperCase()
 
     await update(dbRef(db), updates)
+    
+    // 2. Biarkan Audit yang menghitung ulang semua saldo dan blok dari nol
     await jalankanAudit()
     
     window.Swal.fire({ icon: 'success', title: 'Tersimpan!', timer: 1500, showConfirmButton: false })
-    emit('saved'); emit('close')
+    emit('saved')
+    emit('close')
   } catch(e) { 
     window.Swal.fire('Error', e.message, 'error') 
   } finally { 
@@ -164,39 +134,21 @@ const hapus = async () => {
   
   saving.value = true
   const itemID = trx.parentId || trx.idUnik 
-  const item = dbStok.value.find(x => x.idUnik === itemID)
   
   try {
     const updates = {}
 
-    // ====== LOGIKA MENGEMBALIKAN BLOK (HAPUS) ======
-    if (item) {
-      let bloks = { ...(item.bloks || {}) }
-      const oldQ = parseFloat(trx.qty) || 0
-      const oldB = trx.blok || ''
-
-      if (oldB && oldB !== 'Tanpa Lokasi') {
-        if (trx.tipe === 'MASUK') bloks[oldB] = (parseFloat(bloks[oldB]) || 0) - oldQ
-        else if (trx.tipe === 'KELUAR') bloks[oldB] = (parseFloat(bloks[oldB]) || 0) + oldQ
-      }
-
-      Object.keys(bloks).forEach(k => {
-        bloks[k] = parseFloat(bloks[k].toFixed(2))
-        if (bloks[k] <= 0) delete bloks[k]
-      })
-
-      updates[`stok_benang/${itemID}/bloks`] = Object.keys(bloks).length ? bloks : null
-    }
-    // ===============================================
-
-    // Menghapus data dari riwayat
+    // 1. Menghapus data dari riwayat
     updates[`riwayat_transaksi/${itemID}/${trx.trxId}`] = null
     
     await update(dbRef(db), updates)
+    
+    // 2. Audit ulang saldo setelah transaksi dihapus
     await jalankanAudit()
     
     window.Swal.fire({ icon: 'success', title: 'Dihapus!', timer: 1500, showConfirmButton: false })
-    emit('saved'); emit('close')
+    emit('saved')
+    emit('close')
   } catch(e) { 
     window.Swal.fire('Error', e.message, 'error') 
   } finally { 

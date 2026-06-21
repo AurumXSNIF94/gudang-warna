@@ -11,6 +11,7 @@ let isAuditing = false
 
 export function useStok() {
   
+  // 🔥 RUMUS VELOCITY
   const kalkulasiVelocity = async (dataArray) => {
     try {
       const snapH = await get(dbRef(db, 'riwayat_transaksi'))
@@ -68,7 +69,7 @@ export function useStok() {
     })
   }
 
-  // 🔥 ENGINE AUDIT YANG SUDAH DIPERBAIKI (ANTI BUG OPNAME) 🔥
+  // 🔥 ENGINE AUDIT YANG SUDAH FULL SINKRON 🔥
   const jalankanAudit = async () => {
     if (isAuditing) return
     isAuditing = true
@@ -105,12 +106,10 @@ export function useStok() {
           } 
           else if (l.tipe === 'OPNAME') {
             if (lokasi === 'Tanpa Lokasi') {
-              // 🔥 OPNAME GLOBAL: Paksa total stok jadi angka inputan, hapus semua memori rak
               totalStok = q
               for (let key in bloksTemp) delete bloksTemp[key]
               if (q > 0) bloksTemp['Tanpa Lokasi'] = q 
             } else {
-              // 🔥 OPNAME BLOK: Cuma ngurusin 1 blok tertentu aja
               const stokBlokLama = parseFloat(bloksTemp[lokasi] || 0)
               const selisih = q - stokBlokLama
               totalStok += selisih
@@ -121,7 +120,14 @@ export function useStok() {
           updates[`riwayat_transaksi/${parentId}/${l.trxId}/stokAkhir`] = parseFloat(totalStok.toFixed(2))
         })
 
+        // 🔥 BERSIHKAN & SAVE BLOK KE MASTER 🔥
+        Object.keys(bloksTemp).forEach(b => {
+          bloksTemp[b] = parseFloat(bloksTemp[b].toFixed(2))
+          if (bloksTemp[b] <= 0) delete bloksTemp[b]
+        })
+
         updates[`stok_benang/${parentId}/stok`] = parseFloat(totalStok.toFixed(2))
+        updates[`stok_benang/${parentId}/bloks`] = Object.keys(bloksTemp).length > 0 ? bloksTemp : null
       })
 
       await update(dbRef(db), updates)
@@ -166,11 +172,9 @@ export function useStok() {
     } 
     else if (tipe === 'OPNAME') {
       if (blokNama === 'Tanpa Lokasi') {
-         // OPNAME GLOBAL
          sBaru = qty
          for (let k in bloks) delete bloks[k]
       } else {
-         // OPNAME BLOK
          const stokBlokLama = parseFloat(bloks[blokNama] || 0)
          const selisih = qty - stokBlokLama
          sBaru = sLama + selisih

@@ -11,7 +11,6 @@ let isAuditing = false
 
 export function useStok() {
   
-  // 🔥 RUMUS VELOCITY
   const kalkulasiVelocity = async (dataArray) => {
     try {
       const snapH = await get(dbRef(db, 'riwayat_transaksi'))
@@ -69,7 +68,6 @@ export function useStok() {
     })
   }
 
-  // 🔥 ENGINE AUDIT YANG SUDAH FULL SINKRON 🔥
   const jalankanAudit = async () => {
     if (isAuditing) return
     isAuditing = true
@@ -104,6 +102,13 @@ export function useStok() {
             totalStok -= q
             bloksTemp[lokasi] = (bloksTemp[lokasi] || 0) - q
           } 
+          // 🔥 TAMBAHAN LOGIKA BACA BUKU MUTASI 🔥
+          else if (l.tipe === 'MUTASI_KELUAR') {
+            bloksTemp[lokasi] = (bloksTemp[lokasi] || 0) - q
+          }
+          else if (l.tipe === 'MUTASI_MASUK') {
+            bloksTemp[lokasi] = (bloksTemp[lokasi] || 0) + q
+          }
           else if (l.tipe === 'OPNAME') {
             if (lokasi === 'Tanpa Lokasi') {
               totalStok = q
@@ -120,7 +125,6 @@ export function useStok() {
           updates[`riwayat_transaksi/${parentId}/${l.trxId}/stokAkhir`] = parseFloat(totalStok.toFixed(2))
         })
 
-        // 🔥 BERSIHKAN & SAVE BLOK KE MASTER 🔥
         Object.keys(bloksTemp).forEach(b => {
           bloksTemp[b] = parseFloat(bloksTemp[b].toFixed(2))
           if (bloksTemp[b] <= 0) delete bloksTemp[b]
@@ -206,6 +210,7 @@ export function useStok() {
     await update(dbRef(db), updates)
   }
 
+  // 🔥 MUTASI SEKARANG RESMI DICATAT DI BUKU RIWAYAT 🔥
   const kirimMutasi = async (idUnik, qty, blokAsal, blokTujuan) => {
     const snap = await get(dbRef(db, `stok_benang/${idUnik}`))
     const item = snap.val()
@@ -224,9 +229,27 @@ export function useStok() {
 
     bersihkanBlok(bloks)
 
+    const now = new Date()
+    // Bikin 2 ID unik biar transaksinya nggak tabrakan
+    const trxOut = 'TRX_' + now.getTime() + '_MO' 
+    const trxIn = 'TRX_' + (now.getTime() + 1000) + '_MI' // Jeda 1 detik biar urut
+
     const updates = {}
     updates[`stok_benang/${idUnik}/bloks`] = Object.keys(bloks).length > 0 ? bloks : null
-    updates[`stok_benang/${idUnik}/tglUpdate`] = new Date().toISOString()
+    updates[`stok_benang/${idUnik}/tglUpdate`] = now.toISOString()
+
+    // Catat barang ditarik dari blok lama
+    updates[`riwayat_transaksi/${idUnik}/${trxOut}`] = {
+      trxId: trxOut, qty: qty, stokAkhir: item.stok,
+      tanggal: now.toISOString(), tipe: 'MUTASI_KELUAR',
+      blok: asal || "Tanpa Lokasi", keterangan: `MUTASI KE ${tujuan || 'TANPA LOKASI'}`
+    }
+    // Catat barang masuk ke blok baru
+    updates[`riwayat_transaksi/${idUnik}/${trxIn}`] = {
+      trxId: trxIn, qty: qty, stokAkhir: item.stok,
+      tanggal: new Date(now.getTime() + 1000).toISOString(), tipe: 'MUTASI_MASUK',
+      blok: tujuan || "Tanpa Lokasi", keterangan: `DARI ${asal || 'TANPA LOKASI'}`
+    }
 
     await update(dbRef(db), updates)
   }

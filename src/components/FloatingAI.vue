@@ -77,7 +77,7 @@ import { db } from '../firebase'
 import { dbStok, itemVelocity } from '../composables/useStok' 
 
 // 🔥 MASUKKAN API KEY GEMINI LU DI SINI
-const API_KEY = 'AIzaSyC1wDA4eyiZqPet4LYKN_2ULjGswWvV3l0' 
+const API_KEY = 'AQ.Ab8RN6IelUK_lJ9SHBAw6kZrwLu1lY7KcPssRD8aPNj36gkjSg' 
 
 const isOpen = ref(false)
 const userInput = ref('')

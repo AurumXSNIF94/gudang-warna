@@ -17,7 +17,8 @@
       <NavBar />
       <div class="container pb-5">
         
-        <button v-if="currentRole === 'admin'" class="btn btn-danger fw-bold shadow-sm my-3 w-100" @click="sapuBersihDatabase">
+        <!-- 🔥 TOMBOL SAPU BERSIH (TEMPORARY) 🔥 -->
+<button v-if="currentRole === 'admin'" class="btn btn-danger fw-bold shadow-sm my-3 w-100" @click="sapuBersihDatabase">
           <i class="fas fa-broom me-2"></i> BERSIHKAN DATABASE DARI BLOK SILUMAN
         </button>
 
@@ -57,9 +58,6 @@
         @close="activeEditTrans = null"
         @saved="onEditSaved"
       />
-
-      <FloatingAI />
-      
     </template>
   </div>
 </template>
@@ -89,9 +87,6 @@ import SelisihModal from './components/modals/SelisihModal.vue'
 import SuratJalanModal from './components/modals/SuratJalanModal.vue'
 import BlokModal from './components/modals/BlokModal.vue'
 
-// 🔥 IMPORT KOMPONEN AI DI SINI 🔥
-import FloatingAI from './components/FloatingAI.vue'
-
 import { showDailyModal } from './composables/useDaily'
 import { showMutasiModal } from './composables/useMutasi'
 import { showBulananModal } from './composables/useBulanan'
@@ -103,7 +98,10 @@ import { showSuratJalanModal } from './composables/useSuratJalan'
 import { showBlokModal } from './composables/useBlok'
 
 const { initAuth } = useAuth()
+
+// 🔥 KITA PANGGIL sapuBersihDatabase DI SINI 🔥
 const { refreshData, sapuBersihDatabase } = useStok()
+
 const { bukaRiwayat } = useHist()
 const { bukaTransaksi } = useTrans()
 
@@ -130,6 +128,7 @@ initAuth(user => {
 const onTransaksi = (tipe, item) => bukaTransaksi(tipe, item)
 const onRiwayat   = (id) => bukaRiwayat(id)
 
+// Fungsi onEditSaved tetap ada untuk mereload data saat edit di dalam modal riwayat selesai
 const onEditSaved = () => {
   histDrawerRef.value?.reloadHist()
   dailyModalRef.value?.loadData()

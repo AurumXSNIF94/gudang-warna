@@ -1,83 +1,66 @@
 <template>
   <div class="ai-widget-container">
-    <button v-if="!isOpen" @click="toggleChat" class="btn btn-primary rounded-circle shadow-lg ai-floating-btn d-flex align-items-center justify-content-center">
-      <i class="fas fa-robot fs-3"></i>
+    <!-- Tombol selalu ada, tidak bergantung logic berat -->
+    <button @click="toggleChat" class="btn btn-primary rounded-circle shadow-lg ai-floating-btn d-flex align-items-center justify-content-center">
+      <i class="fas fa-robot"></i>
     </button>
 
-    <transition name="slide-up">
-      <div v-if="isOpen" class="card shadow-lg ai-chat-window border-0 rounded-4 overflow-hidden">
-        <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center p-3 border-0">
-          <h6 class="mb-0 fw-bold"><i class="fas fa-robot text-warning me-2"></i> Asisten Gudang</h6>
-          <button @click="toggleChat" class="btn-close btn-close-white"></button>
-        </div>
-
-        <div class="card-body bg-light ai-chat-body p-3" ref="chatBox">
-          <div v-for="(msg, index) in chatHistory" :key="index" class="mb-3 d-flex" :class="msg.role === 'user' ? 'justify-content-end' : 'justify-content-start'">
-            <div class="p-2 px-3 rounded-3 shadow-sm text-sm" :class="msg.role === 'user' ? 'bg-primary text-white' : 'bg-white text-dark border'" style="max-width: 85%; white-space: pre-wrap; font-size: 0.9rem;">
-              {{ msg.text }}
-            </div>
-          </div>
-        </div>
-
-        <div class="card-footer bg-white p-2">
-          <div class="input-group">
-            <input type="text" class="form-control border-0 bg-light rounded-pill px-3" v-model="userInput" @keyup.enter="kirimPertanyaan" placeholder="Tanya stok/lokasi..." :disabled="loading">
-            <button class="btn btn-primary rounded-circle ms-2" @click="kirimPertanyaan" :disabled="loading || !userInput.trim()"><i class="fas fa-paper-plane"></i></button>
-          </div>
+    <!-- Chat window -->
+    <div v-if="isOpen" class="card shadow-lg ai-chat-window">
+      <div class="card-header bg-dark text-white d-flex justify-content-between p-2">
+        <span>Asisten Gudang</span>
+        <button @click="isOpen = false" class="btn-close btn-close-white"></button>
+      </div>
+      <div class="card-body" style="overflow-y: auto; height: 300px;">
+        <div v-for="(msg, i) in chatHistory" :key="i" class="mb-2">
+          <strong>{{ msg.role === 'user' ? 'Bos:' : 'AI:' }}</strong> {{ msg.text }}
         </div>
       </div>
-    </transition>
+      <div class="card-footer p-1">
+        <input v-model="userInput" @keyup.enter="kirim" class="form-control" placeholder="Tanya stok...">
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup>
-import { ref, nextTick } from 'vue'
-import { ref as dbRef, get } from 'firebase/database'
-import { db } from '../firebase' 
-import { dbStok } from '../composables/useStok' 
+import { ref } from 'vue'
 
-const API_KEY = 'AQ.Ab8RN6KW8OeCxk6RuTEyjpNBgBKdwPGjwuKg7vM63wvqgKYigA'.trim()
+// 1. CEK API KEY: Pastikan string-nya bener dan tidak ada typo
+const API_KEY = 'AQ.Ab8RN6KW8OeCxk6RuTEyjpNBgBKdwPGjwuKg7vM63wvqgKYigA'.trim() 
 const isOpen = ref(false)
 const userInput = ref('')
-const loading = ref(false)
-const chatBox = ref(null)
-const chatHistory = ref([{ role: 'ai', text: 'Halo Bos, ada yang bisa dibantu hari ini?' }])
+const chatHistory = ref([{ role: 'ai', text: 'Siap Bos!' }])
 
-const toggleChat = () => { isOpen.value = !isOpen.value; nextTick(() => chatBox.value?.scrollTo(0, chatBox.value.scrollHeight)) }
+const toggleChat = () => { isOpen.value = !isOpen.value }
 
-const kirimPertanyaan = async () => {
+const kirim = async () => {
   if (!userInput.value.trim()) return
-  const pesan = userInput.value
-  chatHistory.value.push({ role: 'user', text: pesan })
-  userInput.value = ''
-  loading.value = true
-
+  chatHistory.value.push({ role: 'user', text: userInput.value })
+  
   try {
-    const dataStok = dbStok.value.map(i => ({ id: i.idUnik, stok: i.stok }))
-    const systemPrompt = `Anda asisten gudang. Data stok: ${JSON.stringify(dataStok)}. Pertanyaan: "${pesan}"`
-
+    // 2. Gunakan URL v1beta yang paling stabil
     const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ contents: [{ parts: [{ text: systemPrompt }] }] })
+      body: JSON.stringify({ contents: [{ parts: [{ text: userInput.value }] }] })
     })
 
-    const result = await response.json()
-    console.log("DEBUG RESPONSE:", result)
-
-    if (!response.ok) throw new Error(result.error?.message || "Gagal menghubungi AI")
-    
-    if (result.candidates?.[0]?.content?.parts?.[0]?.text) {
-      chatHistory.value.push({ role: 'ai', text: result.candidates[0].content.parts[0].text })
+    const data = await response.json()
+    if (data.candidates) {
+      chatHistory.value.push({ role: 'ai', text: data.candidates[0].content.parts[0].text })
     } else {
-      throw new Error("AI tidak memberikan jawaban")
+      chatHistory.value.push({ role: 'ai', text: 'Gagal dapet respon: ' + JSON.stringify(data.error) })
     }
-  } catch (error) {
-    console.error("ERROR =", error)
-    chatHistory.value.push({ role: 'ai', text: 'Error: ' + error.message })
-  } finally {
-    loading.value = false
-    nextTick(() => chatBox.value?.scrollTo(0, chatBox.value.scrollHeight))
+  } catch (e) {
+    chatHistory.value.push({ role: 'ai', text: 'Error koneksi!' })
   }
+  userInput.value = ''
 }
 </script>
+
+<style scoped>
+.ai-widget-container { position: fixed; bottom: 30px; right: 30px; z-index: 99999; }
+.ai-floating-btn { width: 50px; height: 50px; }
+.ai-chat-window { position: absolute; bottom: 70px; right: 0; width: 300px; }
+</style>

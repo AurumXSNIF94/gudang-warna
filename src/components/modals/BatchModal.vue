@@ -22,14 +22,14 @@
               <label class="fw-bold mb-2 section-label">
                 <span class="step-num">1</span> COPY DATA DARI EXCEL (Tanpa Header)
               </label>
-              <textarea
+<textarea
                 class="form-control custom-textarea font-monospace"
                 rows="3"
-                placeholder="Format: [Kode/Nama Barang]  [Qty]"
+                placeholder="Format: [Kode/Nama Barang]  [Qty]  [Blok Opsional]"
                 @paste="handlePaste"
               ></textarea>
               <div class="form-text small fw-medium mt-2" style="color: var(--text-muted)">
-                <i class="fas fa-info-circle me-1"></i> Paste data 2 Kolom langsung ke kotak di atas.
+                <i class="fas fa-info-circle me-1"></i> Paste data 2 atau 3 Kolom (Lot, Qty, Blok) dari Excel ke kotak di atas.
               </div>
             </div>
 
@@ -366,12 +366,19 @@ const handlePaste = e => {
   rows.value = []
   pasted.split(/\r\n|\n|\r/).forEach(line => {
     if (!line.trim()) return
+    
+    // Support pisahan dari Excel (Tab), Koma, atau Spasi jauh
     let cols = line.split('\t')
     if (cols.length === 1) cols = line.split(',')
     if (cols.length === 1) cols = line.split(/\s{2,}/)
+    
+    // Ambil data per kolom
     const rawKey = (cols[0] || '').trim()
     const qty    = parseFloat((cols[1] || '').trim().replace(',', '.'))
+    const pastedBlok = (cols[2] || '').trim() // <-- KOLOM KE-3 (BLOK) DIAMBIL DI SINI
+    
     const item   = fuzzyMatch(rawKey)
+    
     rows.value.push({
       rawKey,
       itemId:      item ? item.idUnik  : '',
@@ -379,7 +386,8 @@ const handlePaste = e => {
       warna:       item ? item.warna   : '',
       currentStok: item ? parseFloat(item.stok) || 0 : 0,
       qty:         isNaN(qty) ? '' : qty,
-      blok:        globalBlok.value || ''
+      // Kalau di Excel blok-nya diisi, pakai itu. Kalau kosong, pakai Tujuan Blok Global
+      blok:        pastedBlok ? pastedBlok : (globalBlok.value || '')
     })
   })
 }

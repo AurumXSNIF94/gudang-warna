@@ -97,7 +97,7 @@ const kirimPertanyaan = async () => {
     const systemPrompt = `Anda adalah Asisten Gudang. Data Stok: ${JSON.stringify(dataStok)}. Riwayat: ${JSON.stringify(riwayatUntukAI)}. Jawab singkat & solutif. Panggil "Bos". Pertanyaan: "${pesan}"`
 
     // Menggunakan model Flash-8B (Light)
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-8b:generateContent?key=${API_KEY}`, {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash-8b:generateContent?key=${API_KEY}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ contents: [{ parts: [{ text: systemPrompt }] }] })

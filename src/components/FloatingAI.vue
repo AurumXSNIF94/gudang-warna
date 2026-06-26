@@ -24,7 +24,7 @@
 <script setup>
 import { ref } from 'vue'
 
-const API_KEY = 'AQ.Ab8RN6KW8OeCxk6RuTEyjpNBgBKdwPGjwuKg7vM63wvqgKYigA'.trim()
+const API_KEY = 'AIzaSyC1wDA4eyiZqPet4LYKN_2ULjGswWvV3l0'.trim()
 const isOpen = ref(false)
 const userInput = ref('')
 const loading = ref(false)

@@ -22,14 +22,14 @@
               <label class="fw-bold mb-2 section-label">
                 <span class="step-num">1</span> COPY DATA DARI EXCEL (Tanpa Header)
               </label>
-<textarea
+              <textarea
                 class="form-control custom-textarea font-monospace"
                 rows="3"
-                placeholder="Format: [Kode/Nama Barang]  [Qty]  [Blok Opsional]"
+                placeholder="Format: [Lot Warna]  [Blok]  [Jumlah]"
                 @paste="handlePaste"
               ></textarea>
               <div class="form-text small fw-medium mt-2" style="color: var(--text-muted)">
-                <i class="fas fa-info-circle me-1"></i> Paste data 2 atau 3 Kolom (Lot, Qty, Blok) dari Excel ke kotak di atas.
+                <i class="fas fa-info-circle me-1"></i> Paste data 3 Kolom (Lot, Blok, Qty) dari hasil Pivot Excel ke kotak di atas.
               </div>
             </div>
 
@@ -360,25 +360,37 @@ const addEmptyRow = () => {
   })
 }
 
+// LOGIKA SMART PASTE SESUAI GAMBAR PIVOT: LOT - BLOK - QTY
 const handlePaste = e => {
   e.preventDefault()
   const pasted = (e.clipboardData || window.clipboardData).getData('text')
   rows.value = []
+
   pasted.split(/\r\n|\n|\r/).forEach(line => {
     if (!line.trim()) return
-    
-    // Support pisahan dari Excel (Tab), Koma, atau Spasi jauh
+
+    // Pecah data berdasarkan Tab (bawaan Excel)
     let cols = line.split('\t')
     if (cols.length === 1) cols = line.split(',')
     if (cols.length === 1) cols = line.split(/\s{2,}/)
-    
-    // Ambil data per kolom
-    const rawKey = (cols[0] || '').trim()
-    const qty    = parseFloat((cols[1] || '').trim().replace(',', '.'))
-    const pastedBlok = (cols[2] || '').trim() // <-- KOLOM KE-3 (BLOK) DIAMBIL DI SINI
-    
-    const item   = fuzzyMatch(rawKey)
-    
+
+    // AMBIL DATA SESUAI URUTAN GAMBAR: [0]=Lot, [1]=Blok, [2]=Qty
+    const rawKey  = (cols[0] || '').trim()
+    const rawBlok = (cols[1] || '').trim()
+    const rawQty  = (cols[2] || '').trim()
+
+    if (!rawKey) return // Abaikan kalau nama barang kosong
+
+    // Bersihkan Qty: Ubah koma jadi titik biar bisa dijumlahkan
+    let cleanQty = rawQty.replace(/,/g, '.')
+    const qty = parseFloat(cleanQty)
+
+    // Bersihkan Blok: Kalau isinya '0', anggap kosong (Tanpa Lokasi)
+    const blokFinal = (rawBlok === '0') ? '' : rawBlok
+
+    // Cari barang di database
+    const item = fuzzyMatch(rawKey)
+
     rows.value.push({
       rawKey,
       itemId:      item ? item.idUnik  : '',
@@ -386,8 +398,8 @@ const handlePaste = e => {
       warna:       item ? item.warna   : '',
       currentStok: item ? parseFloat(item.stok) || 0 : 0,
       qty:         isNaN(qty) ? '' : qty,
-      // Kalau di Excel blok-nya diisi, pakai itu. Kalau kosong, pakai Tujuan Blok Global
-      blok:        pastedBlok ? pastedBlok : (globalBlok.value || '')
+      // Masukkan Blok hasil paste, kalau kosong pakai Tujuan Blok Global
+      blok:        blokFinal ? blokFinal : (globalBlok.value || '')
     })
   })
 }

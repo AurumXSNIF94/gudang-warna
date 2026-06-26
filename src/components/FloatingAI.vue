@@ -19,7 +19,7 @@
         <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center p-3 border-0">
           <div class="d-flex align-items-center">
             <i class="fas fa-robot text-warning me-2 fs-5"></i>
-            <h6 class="mb-0 fw-bold">Asisten Gudang AI</h6>
+            <h6 class="mb-0 fw-bold">Asisten Gudang Warna</h6>
           </div>
           <button @click="toggleChat" class="btn-close btn-close-white" aria-label="Close"></button>
         </div>

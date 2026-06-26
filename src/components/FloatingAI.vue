@@ -55,7 +55,7 @@ import { db } from '../firebase'
 import { dbStok, itemVelocity } from '../composables/useStok' 
 
 // MASUKKAN API KEY BARU ANDA DI SINI (Pastikan format AIza...)
-const API_KEY = 'AIzaSyC1wDA4eyiZqPet4LYKN_2ULjGswWvV3l0'.trim() 
+const API_KEY = 'AQ.Ab8RN6KW8OeCxk6RuTEyjpNBgBKdwPGjwuKg7vM63wvqgKYigA'.trim() 
 
 const isOpen = ref(false)
 const userInput = ref('')

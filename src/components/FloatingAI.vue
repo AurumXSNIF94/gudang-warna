@@ -36,7 +36,7 @@ import { ref as dbRef, get } from 'firebase/database'
 import { db } from '../firebase' 
 import { dbStok } from '../composables/useStok' 
 
-const API_KEY = 'MASUKKAN_KUNCI_BARU_DI_SINI'.trim()
+const API_KEY = 'AQ.Ab8RN6KW8OeCxk6RuTEyjpNBgBKdwPGjwuKg7vM63wvqgKYigA'.trim()
 const isOpen = ref(false)
 const userInput = ref('')
 const loading = ref(false)

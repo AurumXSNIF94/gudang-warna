@@ -465,9 +465,11 @@ const submit = async () => {
         }
       }
 
-      currentStok = parseFloat(currentStok.toFixed(2))
+currentStok = parseFloat(currentStok.toFixed(2))
 
-      if (blokNama && bloks[blokNama] <= 0) {
+      // Hanya hapus lokasi blok JIKA stoknya persis 0 (kosong).
+      // JIKA stoknya minus (< 0), blok akan tetap disimpan dan ditampilkan minus.
+      if (blokNama && bloks[blokNama] === 0) {
         delete bloks[blokNama]
       }
 

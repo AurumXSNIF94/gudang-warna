@@ -102,7 +102,6 @@ export function useStok() {
             totalStok -= q
             bloksTemp[lokasi] = (bloksTemp[lokasi] || 0) - q
           } 
-          // 🔥 TAMBAHAN LOGIKA BACA BUKU MUTASI 🔥
           else if (l.tipe === 'MUTASI_KELUAR') {
             bloksTemp[lokasi] = (bloksTemp[lokasi] || 0) - q
           }
@@ -113,7 +112,7 @@ export function useStok() {
             if (lokasi === 'Tanpa Lokasi') {
               totalStok = q
               for (let key in bloksTemp) delete bloksTemp[key]
-              if (q > 0) bloksTemp['Tanpa Lokasi'] = q 
+              if (q !== 0) bloksTemp['Tanpa Lokasi'] = q  // <--- PERBAIKAN: Izinkan Opname Minus
             } else {
               const stokBlokLama = parseFloat(bloksTemp[lokasi] || 0)
               const selisih = q - stokBlokLama
@@ -127,7 +126,8 @@ export function useStok() {
 
         Object.keys(bloksTemp).forEach(b => {
           bloksTemp[b] = parseFloat(bloksTemp[b].toFixed(2))
-          if (bloksTemp[b] <= 0) delete bloksTemp[b]
+          // 🔥 PERBAIKAN UTAMA: Hanya hapus jika persis 0. Angka minus dibiarkan.
+          if (bloksTemp[b] === 0) delete bloksTemp[b] 
         })
 
         updates[`stok_benang/${parentId}/stok`] = parseFloat(totalStok.toFixed(2))
@@ -143,10 +143,12 @@ export function useStok() {
     }
   }
 
+  // 🔥 PERBAIKAN: Fungsi ini dipakai pas Transaksi Tunggal & Mutasi
   const bersihkanBlok = (bloksObj) => {
     Object.keys(bloksObj).forEach(b => {
       const upperB = String(b).trim().toUpperCase()
-      if (upperB.includes('TANPA LOKASI') || upperB === 'NULL' || upperB === '' || Math.abs(bloksObj[b]) <= 0.001) {
+      // Ganti Math.abs(bloksObj[b]) <= 0.001 (yg ngehapus minus), jadi persis ngecek angka 0
+      if (upperB.includes('TANPA LOKASI') || upperB === 'NULL' || upperB === '' || bloksObj[b] === 0) {
         delete bloksObj[b]
       } else {
         bloksObj[b] = parseFloat(bloksObj[b].toFixed(2))
@@ -187,7 +189,7 @@ export function useStok() {
     }
 
     sBaru = parseFloat(sBaru.toFixed(2))
-    bersihkanBlok(bloks)
+    bersihkanBlok(bloks) // <--- Sekarang fungsi ini memaafkan saldo minus
 
     const now = new Date()
     const trxId = 'TRX_' + now.getTime()
@@ -210,7 +212,6 @@ export function useStok() {
     await update(dbRef(db), updates)
   }
 
-  // 🔥 MUTASI SEKARANG RESMI DICATAT DI BUKU RIWAYAT 🔥
   const kirimMutasi = async (idUnik, qty, blokAsal, blokTujuan) => {
     const snap = await get(dbRef(db, `stok_benang/${idUnik}`))
     const item = snap.val()
@@ -227,24 +228,22 @@ export function useStok() {
       bloks[tujuan] = parseFloat(parseFloat(bloks[tujuan] || 0).toFixed(2)) + qty
     }
 
-    bersihkanBlok(bloks)
+    bersihkanBlok(bloks) // <--- Sekarang fungsi ini memaafkan saldo minus
 
     const now = new Date()
-    // Bikin 2 ID unik biar transaksinya nggak tabrakan
     const trxOut = 'TRX_' + now.getTime() + '_MO' 
-    const trxIn = 'TRX_' + (now.getTime() + 1000) + '_MI' // Jeda 1 detik biar urut
+    const trxIn = 'TRX_' + (now.getTime() + 1000) + '_MI' 
 
     const updates = {}
     updates[`stok_benang/${idUnik}/bloks`] = Object.keys(bloks).length > 0 ? bloks : null
     updates[`stok_benang/${idUnik}/tglUpdate`] = now.toISOString()
 
-    // Catat barang ditarik dari blok lama
     updates[`riwayat_transaksi/${idUnik}/${trxOut}`] = {
       trxId: trxOut, qty: qty, stokAkhir: item.stok,
       tanggal: now.toISOString(), tipe: 'MUTASI_KELUAR',
       blok: asal || "Tanpa Lokasi", keterangan: `MUTASI KE ${tujuan || 'TANPA LOKASI'}`
     }
-    // Catat barang masuk ke blok baru
+    
     updates[`riwayat_transaksi/${idUnik}/${trxIn}`] = {
       trxId: trxIn, qty: qty, stokAkhir: item.stok,
       tanggal: new Date(now.getTime() + 1000).toISOString(), tipe: 'MUTASI_MASUK',

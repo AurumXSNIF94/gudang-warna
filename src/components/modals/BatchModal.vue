@@ -336,7 +336,11 @@ const pilihItem = (row, idx, item) => {
   row.kodeErp     = item.kodeErp
   row.warna       = item.warna || ''
   row.currentStok = parseFloat(item.stok) || 0
-  row.blok        = globalBlok.value || '' 
+  
+  // PERBAIKAN: Pertahankan blok hasil paste Excel. 
+  // Kalau kosong, baru pakai settingan Tujuan Blok Global.
+  row.blok        = row.blok ? row.blok : (globalBlok.value || '') 
+  
   activeDrop.value  = -1
   suggestions[idx]  = []
   highlightIdx[idx] = -1

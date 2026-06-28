@@ -10,7 +10,6 @@
           <span :class="['badge-soft', jenisBadgeColor]">{{ item.jenis }}</span>
           <span class="badge-soft badge-soft-warning fw-bold">{{ item.grade || '-' }}</span>
           
-          <!-- 🔥 LABEL VELOCITY DIPINDAH KE SINI (Lebih Rapi & CSS Berfungsi) 🔥 -->
           <template v-if="velocity">
             <span v-if="velocity === 'FAST'" class="badge-soft badge-soft-danger ms-1 fw-bold fast-pulse">
               <i class="fas fa-fire me-1"></i>FAST MOVING
@@ -37,16 +36,18 @@
         </div>
         
         <div class="d-flex flex-wrap gap-2">
-          <template v-if="daftarBlok.length || sisaTanpaBlok > 0">
-            <div v-for="b in daftarBlok" :key="b.nama" class="blok-pill">
+          <template v-if="daftarBlok.length || sisaTanpaBlok !== 0">
+            
+            <div v-for="b in daftarBlok" :key="b.nama" :class="b.qty < 0 ? 'blok-pill-danger' : 'blok-pill'">
               <i class="fas fa-warehouse me-1 opacity-50"></i>
               {{ b.nama }} <span class="ms-1 fw-bold">({{ fmt(b.qty) }})</span>
             </div>
             
-            <div v-if="sisaTanpaBlok > 0" class="blok-pill-warning">
+            <div v-if="sisaTanpaBlok !== 0" :class="sisaTanpaBlok < 0 ? 'blok-pill-danger' : 'blok-pill-warning'">
               <i class="fas fa-map-marker-alt me-1 opacity-50"></i>
               Tanpa Lokasi <span class="ms-1 fw-bold">({{ fmt(sisaTanpaBlok) }})</span>
             </div>
+
           </template>
           
           <template v-else>
@@ -111,6 +112,7 @@ const fmt = n => Number(n || 0).toLocaleString('id-ID', {
 
 const isCritical = computed(() => {
   const s = Number(props.item.stok) || 0
+  // S < 5 (termasuk minus) dan bukan nol akan memicu desain "Critical"
   return s < 5 && s !== 0
 })
 
@@ -130,7 +132,8 @@ const daftarBlok = computed(() => {
     .filter(([nama, qty]) => {
       if (!nama) return false
       const n = String(nama).trim().toUpperCase()
-      return parseFloat(qty) > 0 && n !== '' && n !== 'NULL' && n !== 'UNDEFINED' && !n.includes('TANPA LOKASI')
+      // Ubah dari > 0 menjadi !== 0 agar minus tetap tampil
+      return parseFloat(qty) !== 0 && n !== '' && n !== 'NULL' && n !== 'UNDEFINED' && !n.includes('TANPA LOKASI')
     })
     .map(([nama, qty]) => ({ nama, qty: parseFloat(qty) }))
 })
@@ -149,7 +152,8 @@ const sisaTanpaBlok = computed(() => {
   })
 
   let selisih = totalStok - stokDiRakFisik
-  return selisih > 0.001 ? selisih : 0
+  // Mengizinkan selisih minus untuk lolos
+  return Math.abs(selisih) > 0.001 ? selisih : 0
 })
 </script>
 
@@ -197,6 +201,12 @@ const sisaTanpaBlok = computed(() => {
   background: rgba(245, 158, 11, 0.12); color: #d97706; border: 1px solid rgba(245, 158, 11, 0.25);
 }
 :global([data-bs-theme="dark"]) .blok-pill-warning { color: #f59e0b; }
+
+/* KELAS BARU UNTUK BLOK YANG MINUS */
+.blok-pill-danger {
+  font-size: 0.75rem; padding: 5px 12px; border-radius: 8px; font-weight: 600;
+  background: rgba(239, 68, 68, 0.1); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.2);
+}
 
 .blok-pill-empty {
   font-size: 0.75rem; padding: 5px 12px; border-radius: 8px; font-weight: 500;

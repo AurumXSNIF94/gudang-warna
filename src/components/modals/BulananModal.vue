@@ -64,7 +64,6 @@ const fmt = n => Number(n || 0).toLocaleString('id-ID', { minimumFractionDigits:
 const formatDate = (iso) => {
   if (!iso) return '-'
   const d = new Date(iso)
-  // Kalau gagal dikonversi jadi Date, balikin teks aslinya aja biar gak crash
   if (isNaN(d.getTime())) return iso 
   return d.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })
 }
@@ -82,21 +81,32 @@ onMounted(async () => {
       if (!p || typeof p !== 'object') return 
       
       Object.values(p).forEach(t => {
-        // Lewati riwayat yang nggak punya tanggal biar logic gak nyangkut
+        // Lewati riwayat yang nggak punya tanggal
         if (!t || !t.tanggal) return 
+
+        // 🔥 FITUR BARU: BLOCKIR TIPE SELAIN IN/OUT
+        // Lewati mutasi (MUTASI_MASUK, MUTASI_KELUAR) dan opname (OPNAME)
+        if (t.tipe === 'MUTASI_MASUK' || t.tipe === 'MUTASI_KELUAR' || t.tipe === 'OPNAME') {
+          return 
+        }
 
         const d = String(t.tanggal).substring(0, 10)
         const k = (t.keterangan || '-').toUpperCase()
         const key = `${d}_${k}`
         
         if (!groups[key]) groups[key] = { tanggal: d, keterangan: k, masuk: 0, keluar: 0 }
+        
         if (t.tipe === 'MASUK') groups[key].masuk += parseFloat(t.qty) || 0
         if (t.tipe === 'KELUAR') groups[key].keluar += parseFloat(t.qty) || 0
       })
     })
 
+    // 🔥 HANYA TAMPILKAN GRUP YANG PUNYA ANGKA (> 0)
+    // Menghindari baris bodong kalau ada tipe MASUK/KELUAR tapi qty-nya 0.
+    const filteredGroups = Object.values(groups).filter(g => g.masuk > 0 || g.keluar > 0)
+
     // 🔥 PENGURUTAN: Tanggal (Terbaru ke Terlama) -> Abjad (A - Z)
-    arusDetail.value = Object.values(groups).sort((a, b) => {
+    arusDetail.value = filteredGroups.sort((a, b) => {
       if (b.tanggal > a.tanggal) return 1
       if (b.tanggal < a.tanggal) return -1
       return (a.keterangan || '').localeCompare(b.keterangan || '')

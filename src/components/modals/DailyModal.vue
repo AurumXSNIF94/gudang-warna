@@ -166,6 +166,11 @@ const loadData = async () => {
     const result = []
     Object.keys(all).forEach(pId => {
       Object.values(all[pId] || {}).forEach(trx => {
+        // 🔥 FILTER BARU: Buang mutasi dan opname
+        if (trx.tipe === 'MUTASI_MASUK' || trx.tipe === 'MUTASI_KELUAR' || trx.tipe === 'OPNAME') {
+          return 
+        }
+
         if (trx.tanggal?.startsWith(tglPicker.value)) {
           const m = dbStok.value.find(x => x.idUnik === pId)
           result.push({ ...trx, namaBarang: m?.nama || 'N/A', kodeErpRef: m?.kodeErp || '-', parentId: pId })

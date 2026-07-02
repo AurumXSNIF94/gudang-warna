@@ -35,24 +35,30 @@
           <span class="item-meta fw-bold font-monospace">{{ item.kodeErp }}</span>
         </div>
         
-        <div class="d-flex flex-wrap gap-2">
+        <div class="blok-grid">
           <template v-if="daftarBlok.length || sisaTanpaBlok !== 0">
             
             <div v-for="b in daftarBlok" :key="b.nama" :class="b.qty < 0 ? 'blok-pill-danger' : 'blok-pill'">
-              <i class="fas fa-warehouse me-1 opacity-50"></i>
-              {{ b.nama }} <span class="ms-1 fw-bold">({{ fmt(b.qty) }})</span>
+              <div class="d-flex align-items-center">
+                <i class="fas fa-warehouse me-2 opacity-50"></i>
+                <span class="text-truncate">{{ b.nama }}</span>
+              </div>
+              <span class="ms-1 fw-bold">{{ fmt(b.qty) }}</span>
             </div>
             
-            <div v-if="sisaTanpaBlok !== 0" :class="sisaTanpaBlok < 0 ? 'blok-pill-danger' : 'blok-pill-warning'">
-              <i class="fas fa-map-marker-alt me-1 opacity-50"></i>
-              Tanpa Lokasi <span class="ms-1 fw-bold">({{ fmt(sisaTanpaBlok) }})</span>
+            <div v-if="sisaTanpaBlok !== 0" :class="sisaTanpaBlok < 0 ? 'blok-pill-danger span-full' : 'blok-pill-warning span-full'">
+              <div class="d-flex align-items-center">
+                <i class="fas fa-map-marker-alt me-2 opacity-50"></i>
+                <span>Tanpa Lokasi</span>
+              </div>
+              <span class="ms-1 fw-bold">{{ fmt(sisaTanpaBlok) }}</span>
             </div>
 
           </template>
           
           <template v-else>
-            <div class="blok-pill-empty">
-              <i class="fas fa-box-open me-1 opacity-50"></i>
+            <div class="blok-pill-empty span-full">
+              <i class="fas fa-box-open me-2 opacity-50"></i>
               Belum ada stok fisik
             </div>
           </template>
@@ -191,25 +197,44 @@ const sisaTanpaBlok = computed(() => {
 
 .badge-soft-secondary { background: var(--bg-main); color: var(--text-muted); }
 
+/* 🔥 BUNGKUSAN GRID BARU 🔥 */
+.blok-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr); /* Pasti 2 kolom rata */
+  gap: 8px;
+}
+
+/* Biar Tanpa Lokasi makan 2 kolom full */
+.span-full {
+  grid-column: span 2; 
+}
+
+/* 🔥 PERUBAHAN STYLE PILL BIAR RAPI DALAM GRID 🔥 */
+.blok-pill, .blok-pill-warning, .blok-pill-danger, .blok-pill-empty {
+  font-size: 0.75rem; 
+  padding: 6px 12px; 
+  border-radius: 8px; 
+  font-weight: 600;
+  display: flex; 
+  justify-content: space-between; /* Icon di kiri, Angka di kanan */
+  align-items: center;
+  width: 100%; /* Pastikan full menuhi sel grid-nya */
+}
+
 .blok-pill {
-  font-size: 0.75rem; padding: 5px 12px; border-radius: 8px; font-weight: 600;
   background: rgba(14, 165, 233, 0.1); color: #0ea5e9; border: 1px solid rgba(14, 165, 233, 0.2);
 }
 
 .blok-pill-warning {
-  font-size: 0.75rem; padding: 5px 12px; border-radius: 8px; font-weight: 600;
   background: rgba(245, 158, 11, 0.12); color: #d97706; border: 1px solid rgba(245, 158, 11, 0.25);
 }
 :global([data-bs-theme="dark"]) .blok-pill-warning { color: #f59e0b; }
 
-/* KELAS BARU UNTUK BLOK YANG MINUS */
 .blok-pill-danger {
-  font-size: 0.75rem; padding: 5px 12px; border-radius: 8px; font-weight: 600;
   background: rgba(239, 68, 68, 0.1); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.2);
 }
 
 .blok-pill-empty {
-  font-size: 0.75rem; padding: 5px 12px; border-radius: 8px; font-weight: 500;
   background: var(--bg-main); color: var(--text-muted); border: 1px dashed var(--border-color);
 }
 

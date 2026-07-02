@@ -134,7 +134,7 @@
                       <td>
                         <select class="form-select form-select-sm fw-bold custom-input table-input py-0 px-2" style="height: 28px;" v-model="row.blok">
                           <option value="">- Tanpa Lokasi -</option>
-                          <template v-if="(globalTipe === 'KELUAR' || globalTipe === 'OPNAME') && row.itemId">
+                          <template v-if="row.itemId && Object.keys(getItemBloks(row.itemId)).length">
                             <option v-for="(stokBlok, blokNama) in getItemBloks(row.itemId)"
                                     :key="'saran-'+blokNama" :value="blokNama">
                               {{ blokNama }} ({{ fmt(stokBlok) }})
@@ -337,7 +337,7 @@ const pilihItem = (row, idx, item) => {
   row.warna       = item.warna || ''
   row.currentStok = parseFloat(item.stok) || 0
   
-  // PERBAIKAN: Pertahankan blok hasil paste Excel. 
+  // Pertahankan blok hasil paste Excel. 
   // Kalau kosong, baru pakai settingan Tujuan Blok Global.
   row.blok        = row.blok ? row.blok : (globalBlok.value || '') 
   
@@ -364,7 +364,6 @@ const addEmptyRow = () => {
   })
 }
 
-// LOGIKA SMART PASTE SESUAI GAMBAR PIVOT: LOT - BLOK - QTY
 const handlePaste = e => {
   e.preventDefault()
   const pasted = (e.clipboardData || window.clipboardData).getData('text')
@@ -373,26 +372,21 @@ const handlePaste = e => {
   pasted.split(/\r\n|\n|\r/).forEach(line => {
     if (!line.trim()) return
 
-    // Pecah data berdasarkan Tab (bawaan Excel)
     let cols = line.split('\t')
     if (cols.length === 1) cols = line.split(',')
     if (cols.length === 1) cols = line.split(/\s{2,}/)
 
-    // AMBIL DATA SESUAI URUTAN GAMBAR: [0]=Lot, [1]=Blok, [2]=Qty
     const rawKey  = (cols[0] || '').trim()
     const rawBlok = (cols[1] || '').trim()
     const rawQty  = (cols[2] || '').trim()
 
-    if (!rawKey) return // Abaikan kalau nama barang kosong
+    if (!rawKey) return 
 
-    // Bersihkan Qty: Ubah koma jadi titik biar bisa dijumlahkan
     let cleanQty = rawQty.replace(/,/g, '.')
     const qty = parseFloat(cleanQty)
 
-    // Bersihkan Blok: Kalau isinya '0', anggap kosong (Tanpa Lokasi)
     const blokFinal = (rawBlok === '0') ? '' : rawBlok
 
-    // Cari barang di database
     const item = fuzzyMatch(rawKey)
 
     rows.value.push({
@@ -402,7 +396,6 @@ const handlePaste = e => {
       warna:       item ? item.warna   : '',
       currentStok: item ? parseFloat(item.stok) || 0 : 0,
       qty:         isNaN(qty) ? '' : qty,
-      // Masukkan Blok hasil paste, kalau kosong pakai Tujuan Blok Global
       blok:        blokFinal ? blokFinal : (globalBlok.value || '')
     })
   })
@@ -469,10 +462,8 @@ const submit = async () => {
         }
       }
 
-currentStok = parseFloat(currentStok.toFixed(2))
+      currentStok = parseFloat(currentStok.toFixed(2))
 
-      // Hanya hapus lokasi blok JIKA stoknya persis 0 (kosong).
-      // JIKA stoknya minus (< 0), blok akan tetap disimpan dan ditampilkan minus.
       if (blokNama && bloks[blokNama] === 0) {
         delete bloks[blokNama]
       }
@@ -528,7 +519,7 @@ currentStok = parseFloat(currentStok.toFixed(2))
 .text-success { color: #10b981 !important; }
 
 .btn-close-custom {
-  background: transparent url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='%2364748b'%3e%3cpath d='M.293.293a1 1 0 0 1 1.414 0L8 6.586 14.293.293a1 1 0 1 1 1.414 1.414L9.414 8l6.293 6.293a1 1 0 0 1-1.414 1.414L8 9.414l-6.293 6.293a1 1 0 0 1-1.414-1.414L6.586 8 .293 1.707a1 1 0 0 1 0-1.414z'/%3e%3c/svg%3e") center/1em auto no-repeat;
+  background: transparent url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='%2364748b'%3e%3cpath d='M.293.293a1 1 0 0 1 1.414 0L8 6.586 14.293.293a1 1 0 1 1 1.414 1.414L9.414 8l6.293 6.293a1 1 0 0 1-1.414-1.414L6.586 8 .293 1.707a1 1 0 0 1 0-1.414z'/%3e%3c/svg%3e") center/1em auto no-repeat;
   border: none; width: 32px; height: 32px; opacity: 0.5; transition: opacity 0.2s; cursor:pointer;
 }
 .btn-close-custom:hover { opacity: 1; }

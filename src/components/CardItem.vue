@@ -38,20 +38,26 @@
         <div class="blok-grid">
           <template v-if="daftarBlok.length || sisaTanpaBlok !== 0">
             
-            <div v-for="b in daftarBlok" :key="b.nama" :class="b.qty < 0 ? 'blok-pill-danger' : 'blok-pill'">
-              <div class="d-flex align-items-center">
+            <div v-for="b in daftarBlok" :key="b.nama" :class="b.qty < 0 ? 'blok-pill-danger' : 'blok-pill'" style="position: relative; overflow: hidden; z-index: 1;">
+              
+              <div class="capacity-bar" :style="{ width: getBarPercent(b.qty) + '%' }"></div>
+
+              <div class="d-flex align-items-center" style="z-index: 2;">
                 <i class="fas fa-warehouse me-2 opacity-50"></i>
                 <span class="text-truncate">{{ b.nama }}</span>
               </div>
-              <span class="ms-1 fw-bold">{{ fmt(b.qty) }}</span>
+              <span class="ms-1 fw-bold" style="z-index: 2;">{{ fmt(b.qty) }}</span>
             </div>
             
-            <div v-if="sisaTanpaBlok !== 0" :class="sisaTanpaBlok < 0 ? 'blok-pill-danger span-full' : 'blok-pill-warning span-full'">
-              <div class="d-flex align-items-center">
+            <div v-if="sisaTanpaBlok !== 0" :class="sisaTanpaBlok < 0 ? 'blok-pill-danger span-full' : 'blok-pill-warning span-full'" style="position: relative; overflow: hidden; z-index: 1;">
+              
+              <div class="capacity-bar" :style="{ width: getBarPercent(sisaTanpaBlok) + '%' }"></div>
+
+              <div class="d-flex align-items-center" style="z-index: 2;">
                 <i class="fas fa-map-marker-alt me-2 opacity-50"></i>
                 <span>Tanpa Lokasi</span>
               </div>
-              <span class="ms-1 fw-bold">{{ fmt(sisaTanpaBlok) }}</span>
+              <span class="ms-1 fw-bold" style="z-index: 2;">{{ fmt(sisaTanpaBlok) }}</span>
             </div>
 
           </template>
@@ -118,7 +124,6 @@ const fmt = n => Number(n || 0).toLocaleString('id-ID', {
 
 const isCritical = computed(() => {
   const s = Number(props.item.stok) || 0
-  // S < 5 (termasuk minus) dan bukan nol akan memicu desain "Critical"
   return s < 5 && s !== 0
 })
 
@@ -138,7 +143,6 @@ const daftarBlok = computed(() => {
     .filter(([nama, qty]) => {
       if (!nama) return false
       const n = String(nama).trim().toUpperCase()
-      // Ubah dari > 0 menjadi !== 0 agar minus tetap tampil
       return parseFloat(qty) !== 0 && n !== '' && n !== 'NULL' && n !== 'UNDEFINED' && !n.includes('TANPA LOKASI')
     })
     .map(([nama, qty]) => ({ nama, qty: parseFloat(qty) }))
@@ -158,9 +162,16 @@ const sisaTanpaBlok = computed(() => {
   })
 
   let selisih = totalStok - stokDiRakFisik
-  // Mengizinkan selisih minus untuk lolos
   return Math.abs(selisih) > 0.001 ? selisih : 0
 })
+
+// 🔥 LOGIKA MENGHITUNG PERSENTASE KAPASITAS RAK SECARA PROPORSIONAL
+const getBarPercent = (qty) => {
+  const total = parseFloat(props.item?.stok) || 0
+  if (total <= 0 || qty <= 0) return 0
+  const percent = (qty / total) * 100
+  return Math.min(percent, 100).toFixed(1)
+}
 </script>
 
 <style scoped>
@@ -197,28 +208,28 @@ const sisaTanpaBlok = computed(() => {
 
 .badge-soft-secondary { background: var(--bg-main); color: var(--text-muted); }
 
-/* 🔥 BUNGKUSAN GRID BARU 🔥 */
+/* 🔥 CSS BARU: GRID DUA KOLOM SINKRON 🔥 */
 .blok-grid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr); /* Pasti 2 kolom rata */
+  grid-template-columns: repeat(2, 1fr); /* Pengunci simetris kiri-kanan */
   gap: 8px;
 }
 
-/* Biar Tanpa Lokasi makan 2 kolom full */
+/* Tanpa Lokasi / Belum ada stok dipaksa lebar penuh */
 .span-full {
   grid-column: span 2; 
 }
 
-/* 🔥 PERUBAHAN STYLE PILL BIAR RAPI DALAM GRID 🔥 */
+/* Modifikasi padding & layout pill agar simetris di dalam sel Grid */
 .blok-pill, .blok-pill-warning, .blok-pill-danger, .blok-pill-empty {
   font-size: 0.75rem; 
   padding: 6px 12px; 
   border-radius: 8px; 
   font-weight: 600;
   display: flex; 
-  justify-content: space-between; /* Icon di kiri, Angka di kanan */
+  justify-content: space-between; 
   align-items: center;
-  width: 100%; /* Pastikan full menuhi sel grid-nya */
+  width: 100%;
 }
 
 .blok-pill {
@@ -236,6 +247,18 @@ const sisaTanpaBlok = computed(() => {
 
 .blok-pill-empty {
   background: var(--bg-main); color: var(--text-muted); border: 1px dashed var(--border-color);
+}
+
+/* 🔥 CSS BARU: BACKDROP PROGRESS BAR KAPASITAS 🔥 */
+.capacity-bar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  background-color: currentColor; /* Otomatis mewarisi warna teks pembungkusnya */
+  opacity: 0.12; /* Tipis-tipis super clean, teks depan dijamin aman terbaca */
+  z-index: 0;
+  transition: width 0.4s ease-in-out;
 }
 
 .stok-box {
@@ -266,7 +289,6 @@ const sisaTanpaBlok = computed(() => {
 .btn-audit-action { background: rgba(245, 158, 11, 0.1); color: #d97706; border: 1px solid rgba(245, 158, 11, 0.2); }
 .btn-audit-action:hover { background: rgba(245, 158, 11, 0.2); }
 
-/* 🔥 EFEK DENYUT KEMBALI NORMAL DAN MULUS 🔥 */
 .fast-pulse {
   animation: pulse-danger 2s infinite;
 }

@@ -24,7 +24,6 @@
               <i class="fas fa-snowflake me-1"></i>DEAD STOCK
             </span>
           </template>
-
         </div>
       </div>
 
@@ -38,32 +37,30 @@
         <div class="blok-grid">
           <template v-if="daftarBlok.length || sisaTanpaBlok !== 0">
             
-            <div v-for="b in daftarBlok" :key="b.nama" :class="b.qty < 0 ? 'blok-pill-danger' : 'blok-pill'" style="position: relative; overflow: hidden; z-index: 1;">
-              
-              <div class="capacity-bar" :style="{ width: getBarPercent(b.qty) + '%' }"></div>
-
-              <div class="d-flex align-items-center" style="z-index: 2;">
-                <i class="fas fa-warehouse me-2 opacity-50"></i>
+            <div v-for="b in daftarBlok" :key="b.nama" :class="b.qty < 0 ? 'pill-split-danger' : 'pill-split-normal'">
+              <div class="pill-left">
+                <i class="fas fa-warehouse opacity-50 me-2"></i>
                 <span class="text-truncate">{{ b.nama }}</span>
               </div>
-              <span class="ms-1 fw-bold" style="z-index: 2;">{{ fmt(b.qty) }}</span>
+              <div class="pill-right font-monospace">
+                {{ fmt(b.qty) }}
+              </div>
             </div>
             
-            <div v-if="sisaTanpaBlok !== 0" :class="sisaTanpaBlok < 0 ? 'blok-pill-danger span-full' : 'blok-pill-warning span-full'" style="position: relative; overflow: hidden; z-index: 1;">
-              
-              <div class="capacity-bar" :style="{ width: getBarPercent(sisaTanpaBlok) + '%' }"></div>
-
-              <div class="d-flex align-items-center" style="z-index: 2;">
-                <i class="fas fa-map-marker-alt me-2 opacity-50"></i>
+            <div v-if="sisaTanpaBlok !== 0" :class="sisaTanpaBlok < 0 ? 'pill-split-danger span-full' : 'pill-split-warning span-full'">
+              <div class="pill-left">
+                <i class="fas fa-map-marker-alt opacity-50 me-2"></i>
                 <span>Tanpa Lokasi</span>
               </div>
-              <span class="ms-1 fw-bold" style="z-index: 2;">{{ fmt(sisaTanpaBlok) }}</span>
+              <div class="pill-right font-monospace">
+                {{ fmt(sisaTanpaBlok) }}
+              </div>
             </div>
 
           </template>
           
           <template v-else>
-            <div class="blok-pill-empty span-full">
+            <div class="pill-empty-state span-full">
               <i class="fas fa-box-open me-2 opacity-50"></i>
               Belum ada stok fisik
             </div>
@@ -79,26 +76,21 @@
       </div>
 
       <div v-if="role === 'admin'" class="d-flex gap-2">
-        <button class="btn btn-action btn-in flex-grow-1"
-                @click="$emit('transaksi', 'MASUK', item)">
+        <button class="btn btn-action btn-in flex-grow-1" @click="$emit('transaksi', 'MASUK', item)">
           <i class="fas fa-arrow-down me-1"></i> Masuk
         </button>
-        <button class="btn btn-action btn-out flex-grow-1"
-                @click="$emit('transaksi', 'KELUAR', item)">
+        <button class="btn btn-action btn-out flex-grow-1" @click="$emit('transaksi', 'KELUAR', item)">
           <i class="fas fa-arrow-up me-1"></i> Keluar
         </button>
-        <button class="btn btn-action btn-light-action border" title="Riwayat"
-                @click="$emit('riwayat', item.idUnik)">
+        <button class="btn btn-action btn-light-action border" title="Riwayat" @click="$emit('riwayat', item.idUnik)">
           <i class="fas fa-history text-secondary"></i>
         </button>
-        <button class="btn btn-action btn-audit-action" title="Opname"
-                @click="$emit('transaksi', 'OPNAME', item)">
+        <button class="btn btn-action btn-audit-action" title="Opname" @click="$emit('transaksi', 'OPNAME', item)">
           <i class="fas fa-check-double"></i>
         </button>
       </div>
       <div v-else class="d-grid">
-        <button class="btn btn-action btn-light-action border w-100 d-flex justify-content-center align-items-center"
-                @click="$emit('riwayat', item.idUnik)">
+        <button class="btn btn-action btn-light-action border w-100 d-flex justify-content-center align-items-center" @click="$emit('riwayat', item.idUnik)">
           <i class="fas fa-history me-2 text-primary"></i> Lihat Riwayat
         </button>
       </div>
@@ -164,17 +156,10 @@ const sisaTanpaBlok = computed(() => {
   let selisih = totalStok - stokDiRakFisik
   return Math.abs(selisih) > 0.001 ? selisih : 0
 })
-
-// 🔥 LOGIKA MENGHITUNG PERSENTASE KAPASITAS RAK SECARA PROPORSIONAL
-const getBarPercent = (qty) => {
-  const total = parseFloat(props.item?.stok) || 0
-  if (total <= 0 || qty <= 0) return 0
-  const percent = (qty / total) * 100
-  return Math.min(percent, 100).toFixed(1)
-}
 </script>
 
 <style scoped>
+/* CARD BASE */
 .card-item {
   border-radius: 20px;
   background: var(--bg-card);
@@ -202,65 +187,67 @@ const getBarPercent = (qty) => {
 .badge-soft-primary { background: rgba(79, 70, 229, 0.1); color: #4f46e5; }
 .badge-soft-success { background: rgba(16, 185, 129, 0.1); color: #10b981; }
 .badge-soft-danger { background: rgba(239, 68, 68, 0.1); color: #ef4444; }
-
 .badge-soft-warning { background: rgba(245, 158, 11, 0.15); color: #d97706; }
 :global([data-bs-theme="dark"]) .badge-soft-warning { color: #f59e0b; }
-
 .badge-soft-secondary { background: var(--bg-main); color: var(--text-muted); }
 
-/* 🔥 CSS BARU: GRID DUA KOLOM SINKRON 🔥 */
+/* 🔥 SYSTEM GRID BERSIH (2 KOLOM) 🔥 */
 .blok-grid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr); /* Pengunci simetris kiri-kanan */
+  grid-template-columns: repeat(2, 1fr);
   gap: 8px;
 }
-
-/* Tanpa Lokasi / Belum ada stok dipaksa lebar penuh */
 .span-full {
-  grid-column: span 2; 
+  grid-column: span 2;
 }
 
-/* Modifikasi padding & layout pill agar simetris di dalam sel Grid */
-.blok-pill, .blok-pill-warning, .blok-pill-danger, .blok-pill-empty {
-  font-size: 0.75rem; 
-  padding: 6px 12px; 
-  border-radius: 8px; 
-  font-weight: 600;
-  display: flex; 
-  justify-content: space-between; 
+/* 🔥 STYLE BARU: CONSTRUCT SPLIT PILL (DUAL TONE) 🔥 */
+.pill-split-normal, .pill-split-warning, .pill-split-danger {
+  display: flex;
   align-items: center;
-  width: 100%;
+  justify-content: space-between;
+  background: var(--bg-main);
+  border-radius: 10px;
+  padding: 3px 3px 3px 10px; /* ruang kiri longgar, kanan mepet ke sub-badge */
+  font-size: 0.78rem;
+  font-weight: 600;
+  border: 1px solid var(--border-color);
 }
 
-.blok-pill {
-  background: rgba(14, 165, 233, 0.1); color: #0ea5e9; border: 1px solid rgba(14, 165, 233, 0.2);
+.pill-left {
+  display: flex;
+  align-items: center;
+  color: var(--text-main);
+  min-width: 0;
 }
 
-.blok-pill-warning {
-  background: rgba(245, 158, 11, 0.12); color: #d97706; border: 1px solid rgba(245, 158, 11, 0.25);
+.pill-right {
+  padding: 4px 8px;
+  border-radius: 7px;
+  font-weight: 700;
+  font-size: 0.75rem;
+  white-space: nowrap;
 }
-:global([data-bs-theme="dark"]) .blok-pill-warning { color: #f59e0b; }
 
-.blok-pill-danger {
-  background: rgba(239, 68, 68, 0.1); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.2);
-}
+/* Pewarnaan Sub-Badge Kanan Berdasarkan Status */
+.pill-split-normal { border-color: rgba(14, 165, 233, 0.15); }
+.pill-split-normal .pill-right { background: rgba(14, 165, 233, 0.12); color: #0ea5e9; }
 
-.blok-pill-empty {
+.pill-split-warning { border-color: rgba(245, 158, 11, 0.2); }
+.pill-split-warning .pill-right { background: rgba(245, 158, 11, 0.15); color: #d97706; }
+:global([data-bs-theme="dark"]) .pill-split-warning .pill-right { color: #f59e0b; }
+
+.pill-split-danger { border-color: rgba(239, 68, 68, 0.2); background: rgba(239, 68, 68, 0.02); }
+.pill-split-danger .pill-right { background: rgba(239, 68, 68, 0.12); color: #ef4444; }
+
+/* Empty State Style */
+.pill-empty-state {
+  font-size: 0.75rem; padding: 8px 12px; border-radius: 8px; font-weight: 500;
   background: var(--bg-main); color: var(--text-muted); border: 1px dashed var(--border-color);
+  text-align: center;
 }
 
-/* 🔥 CSS BARU: BACKDROP PROGRESS BAR KAPASITAS 🔥 */
-.capacity-bar {
-  position: absolute;
-  top: 0;
-  left: 0;
-  height: 100%;
-  background-color: currentColor; /* Otomatis mewarisi warna teks pembungkusnya */
-  opacity: 0.12; /* Tipis-tipis super clean, teks depan dijamin aman terbaca */
-  z-index: 0;
-  transition: width 0.4s ease-in-out;
-}
-
+/* STOK BOX TOTAL */
 .stok-box {
   padding: 12px 16px; border-radius: 12px;
   display: flex; flex-direction: column; gap: 4px;
@@ -273,26 +260,21 @@ const getBarPercent = (qty) => {
 .stok-box-kritis .stok-val { color: #dc2626; }
 .stok-unit { font-size: 0.9rem; color: var(--text-muted); font-weight: 600; letter-spacing: normal; }
 
+/* BTN ACTIONS */
 .btn-action {
   font-weight: 600; font-size: 0.85rem; padding: 8px 12px; border-radius: 10px;
   transition: all 0.2s; display: flex; align-items: center; justify-content: center;
 }
 .btn-in { background: rgba(16, 185, 129, 0.1); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.2); }
 .btn-in:hover { background: rgba(16, 185, 129, 0.2); }
-
 .btn-out { background: rgba(239, 68, 68, 0.1); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.2); }
 .btn-out:hover { background: rgba(239, 68, 68, 0.2); }
-
 .btn-light-action { background: var(--bg-card); color: var(--text-muted); border-color: var(--border-color); }
 .btn-light-action:hover { background: var(--bg-main); border-color: var(--text-muted); }
-
 .btn-audit-action { background: rgba(245, 158, 11, 0.1); color: #d97706; border: 1px solid rgba(245, 158, 11, 0.2); }
 .btn-audit-action:hover { background: rgba(245, 158, 11, 0.2); }
 
-.fast-pulse {
-  animation: pulse-danger 2s infinite;
-}
-
+.fast-pulse { animation: pulse-danger 2s infinite; }
 @keyframes pulse-danger {
   0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.5); }
   70% { box-shadow: 0 0 0 8px rgba(239, 68, 68, 0); }

@@ -347,6 +347,7 @@ const hapusBlok = async (id) => {
   await remove(dbRef(db, `master_blok/${id}`))
 }
 
+// 🔥 FILTER & PENGURUTAN ABJAD (A - Z) UNTUK ITEM RAK FISIK 🔥
 const blokData = computed(() => {
   return masterBlok.value.map(blok => {
     let items = dbStok.value
@@ -361,11 +362,24 @@ const blokData = computed(() => {
         (i.warna   || '').toLowerCase().includes(q)
       )
     }
+
+    // ⚡ PROSES URUT ABJAD: NAMA TRANSAKSI -> WARNA SINKRON
+    items.sort((a, b) => {
+      const nameA = (a.nama || '').toUpperCase()
+      const nameB = (b.nama || '').toUpperCase()
+      if (nameA < nameB) return -1
+      if (nameA > nameB) return 1
+      const colorA = (a.warna || '').toUpperCase()
+      const colorB = (b.warna || '').toUpperCase()
+      return colorA.localeCompare(colorB)
+    })
+
     const totalStok = items.reduce((s, i) => s + i.stokDiBlok, 0)
     return { nama: blok.nama, items, totalStok }
   }).filter(blok => searchBlok.value ? blok.items.length > 0 : true)
 })
 
+// 🔥 PENGURUTAN ABJAD (A - Z) UNTUK ITEM TANPA LOKASI 🔥
 const tanpaLokasi = computed(() => {
   let items = []
   dbStok.value.forEach(i => {
@@ -386,6 +400,18 @@ const tanpaLokasi = computed(() => {
       (i.warna   || '').toLowerCase().includes(q)
     )
   }
+
+  // ⚡ PROSES URUT ABJAD TANPA LOKASI
+  items.sort((a, b) => {
+    const nameA = (a.nama || '').toUpperCase()
+    const nameB = (b.nama || '').toUpperCase()
+    if (nameA < nameB) return -1
+    if (nameA > nameB) return 1
+    const colorA = (a.warna || '').toUpperCase()
+    const colorB = (b.warna || '').toUpperCase()
+    return colorA.localeCompare(colorB)
+  })
+
   return items
 })
 
@@ -544,116 +570,55 @@ onMounted(() => loadMasterBlok())
 
 <style scoped>
 .backdrop-blur { background: rgba(15, 23, 42, 0.6); backdrop-filter: blur(4px); }
-
-.modern-modal {
-  border-radius: 20px;
-  background: var(--bg-main);
-  overflow: hidden;
-}
-
-.icon-circle {
-  width: 40px; height: 40px; border-radius: 12px;
-  display: flex; align-items: center; justify-content: center; font-size: 1.2rem;
-}
-
+.modern-modal { border-radius: 20px; background: var(--bg-main); overflow: hidden; }
+.icon-circle { width: 40px; height: 40px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; }
 .bg-primary-subtle { background: rgba(79, 70, 229, 0.1); }
 .text-primary { color: #4f46e5 !important; }
-
 .btn-close-custom {
-  background: transparent url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='%2364748b'%3e%3cpath d='M.293.293a1 1 0 0 1 1.414 0L8 6.586 14.293.293a1 1 0 1 1 1.414 1.414L9.414 8l6.293 6.293a1 1 0 0 1-1.414 1.414L8 9.414l-6.293 6.293a1 1 0 0 1-1.414-1.414L6.586 8 .293 1.707a1 1 0 0 1 0-1.414z'/%3e%3c/svg%3e") center/1em auto no-repeat;
+  background: transparent url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='%2364748b'%3e%3cpath d='M.293.293a1 1 0 0 1 1.414 0L8 6.586 14.293.293a1 1 0 1 1 1.414 1.414L9.414 8l6.293 6.293a1 1 0 0 1-1.414-1.414L6.586 8 .293 1.707a1 1 0 0 1 0-1.414z'/%3e%3c/svg%3e") center/1em auto no-repeat;
   border: none; width: 32px; height: 32px; opacity: 0.5; transition: opacity 0.2s; cursor:pointer;
 }
 .btn-close-custom:hover { opacity: 1; }
-
-.kelola-area {
-  background: var(--bg-card); border: 1px solid var(--border-color);
-}
-.badge-soft {
-  font-size: 0.75rem; padding: 4px 10px; border-radius: 8px; font-weight: 700;
-}
+.kelola-area { background: var(--bg-card); border: 1px solid var(--border-color); }
+.badge-soft { font-size: 0.75rem; padding: 4px 10px; border-radius: 8px; font-weight: 700; }
 .badge-soft-primary { background: rgba(79, 70, 229, 0.1); color: #4f46e5; }
 .hover-opacity-100:hover { opacity: 1 !important; color: #ef4444; }
-
-/* SEARCH BAR */
-.search-container {
-  display: flex; align-items: center; background: var(--bg-card);
-  border-radius: 12px; padding: 8px 16px; border: 1px solid var(--border-color); transition: all 0.3s ease;
-}
+.search-container { display: flex; align-items: center; background: var(--bg-card); border-radius: 12px; padding: 8px 16px; border: 1px solid var(--border-color); transition: all 0.3s ease; }
 .search-container:focus-within { border-color: #818cf8; box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1); }
 .search-icon { color: var(--text-muted); margin-right: 12px; }
 .search-input { flex: 1; border: none; background: transparent; color: var(--text-main); font-weight: 500; outline: none; }
 .search-input::placeholder { color: var(--text-muted); opacity: 0.6; }
 .clear-btn { background: transparent; border: none; color: var(--text-muted); cursor: pointer; }
 .clear-btn:hover { color: #ef4444; }
-
-/* FIX KARTU BLOK: Hapus overflow:hidden agar dropdown tidak terpotong */
-.blok-card {
-  border: 1px solid var(--border-color); border-radius: 16px;
-  cursor: pointer; transition: all .2s; background: var(--bg-card);
-}
+.blok-card { border: 1px solid var(--border-color); border-radius: 16px; cursor: pointer; transition: all .2s; background: var(--bg-card); }
 .blok-card:hover { transform: translateY(-2px); box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); }
 .blok-active { border: 2px solid #4f46e5 !important; }
 .blok-active-warning { border: 2px solid #f59e0b !important; }
-
-/* FIX BLOK HEADER: Tambah border radius atas pengganti overflow hidden */
-.blok-header {
-  background: linear-gradient(135deg, #4f46e5, #3b82f6); color: #fff; padding: 16px;
-  border-top-left-radius: 15px; border-top-right-radius: 15px;
-}
+.blok-header { background: linear-gradient(135deg, #4f46e5, #3b82f6); color: #fff; padding: 16px; border-top-left-radius: 15px; border-top-right-radius: 15px; }
 .blok-items { padding: 0; border-top: 1px solid var(--border-color); }
-.blok-item-row {
-  padding: 12px 16px; border-bottom: 1px solid var(--border-color); transition: background .15s;
-}
+.blok-item-row { padding: 12px 16px; border-bottom: 1px solid var(--border-color); transition: background .15s; }
 .blok-item-row:hover { background: rgba(0,0,0,0.02); }
-
 .bg-light-modern { background: var(--bg-main); }
 .bg-card { background: var(--bg-card); }
-
-/* CUSTOM INPUTS */
-.custom-input {
-  background: var(--bg-card); color: var(--text-main); border: 1px solid var(--border-color); border-radius: 8px;
-}
+.custom-input { background: var(--bg-card); color: var(--text-main); border: 1px solid var(--border-color); border-radius: 8px; }
 .custom-input:focus { border-color: #818cf8; box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.1); outline: none; }
 .custom-addon { background: var(--bg-main); color: var(--text-muted); border: 1px solid var(--border-color); }
-
-.blok-total {
-  display: flex; justify-content: space-between; align-items: center;
-  padding: 12px 16px; background: var(--bg-main); border-top: 1px dashed var(--border-color);
-}
-
-.btn-action {
-  width: 28px; height: 28px; border-radius: 6px; padding:0; display:flex; align-items:center; justify-content:center;
-  font-size: 0.75rem; border: 1px solid transparent; transition: all 0.2s;
-}
+.blok-total { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; background: var(--bg-main); border-top: 1px dashed var(--border-color); }
+.btn-action { width: 28px; height: 28px; border-radius: 6px; padding:0; display:flex; align-items:center; justify-content:center; font-size: 0.75rem; border: 1px solid transparent; transition: all 0.2s; }
 .btn-in { background: rgba(16, 185, 129, 0.1); color: #10b981; border-color: rgba(16, 185, 129, 0.2); }
 .btn-in:hover { background: #10b981; color: #fff; }
 .btn-out { background: rgba(239, 68, 68, 0.1); color: #ef4444; border-color: rgba(239, 68, 68, 0.2); }
 .btn-out:hover { background: #ef4444; color: #fff; }
 .btn-light-action { background: var(--bg-main); color: var(--text-muted); border-color: var(--border-color); }
 .btn-light-action:hover { background: var(--border-color); color: var(--text-main); }
-
 .border-dashed { border-style: dashed !important; opacity: 0.8; }
 .border-dashed:hover { opacity: 1; }
-
-/* FIX DROPDOWN PENCARIAN */
-.ac-dropdown-new {
-  position: absolute; top: calc(100% + 4px); left: 0; right: 0;
-  background: var(--bg-card); border: 1px solid var(--border-color);
-  border-radius: 8px; z-index: 9999; max-height: 200px; overflow-y: auto;
-  box-shadow: 0 10px 25px -5px rgba(0,0,0,0.2);
-  overscroll-behavior: contain;
-  -webkit-overflow-scrolling: touch;
-}
+.ac-dropdown-new { position: absolute; top: calc(100% + 4px); left: 0; right: 0; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 8px; z-index: 9999; max-height: 200px; overflow-y: auto; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.2); overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
 .ac-dropdown-new::-webkit-scrollbar { width: 6px; }
-.ac-dropdown-new::-webkit-scrollbar-track { background: transparent; }
 .ac-dropdown-new::-webkit-scrollbar-thumb { background: rgba(100, 116, 139, 0.4); border-radius: 10px; }
-.ac-dropdown-new::-webkit-scrollbar-thumb:hover { background: rgba(100, 116, 139, 0.7); }
-
-.ac-item-new {
-  padding: 8px 12px; cursor: pointer; border-bottom: 1px solid var(--border-color);
-}
-.ac-item-new:last-child { border-bottom: none; }
+.ac-item-new { padding: 8px 12px; cursor: pointer; border-bottom: 1px solid var(--border-color); }
 .ac-item-new:hover { background-color: var(--bg-main); }
+.text-indigo { color: #6366f1; }
 .bg-success-subtle { background: rgba(16, 185, 129, 0.1); }
 .text-success { color: #10b981 !important; }
 </style>

@@ -347,7 +347,7 @@ const hapusBlok = async (id) => {
   await remove(dbRef(db, `master_blok/${id}`))
 }
 
-// 🔥 FILTER & PENGURUTAN ABJAD (A - Z) UNTUK ITEM RAK FISIK 🔥
+// 🔥 FILTER & PENGURUTAN PURBAKALA: URUT BERDASARKAN KODE ERP SAJA 🔥
 const blokData = computed(() => {
   return masterBlok.value.map(blok => {
     let items = dbStok.value
@@ -363,15 +363,11 @@ const blokData = computed(() => {
       )
     }
 
-    // ⚡ PROSES URUT ABJAD: NAMA TRANSAKSI -> WARNA SINKRON
+    // ⚡ SEKARANG HANYA DIURUTKAN BERDASARKAN KODE ERP (A-Z)
     items.sort((a, b) => {
-      const nameA = (a.nama || '').toUpperCase()
-      const nameB = (b.nama || '').toUpperCase()
-      if (nameA < nameB) return -1
-      if (nameA > nameB) return 1
-      const colorA = (a.warna || '').toUpperCase()
-      const colorB = (b.warna || '').toUpperCase()
-      return colorA.localeCompare(colorB)
+      const erpA = (a.kodeErp || '').toUpperCase()
+      const erpB = (b.kodeErp || '').toUpperCase()
+      return erpA.localeCompare(erpB)
     })
 
     const totalStok = items.reduce((s, i) => s + i.stokDiBlok, 0)
@@ -379,7 +375,7 @@ const blokData = computed(() => {
   }).filter(blok => searchBlok.value ? blok.items.length > 0 : true)
 })
 
-// 🔥 PENGURUTAN ABJAD (A - Z) UNTUK ITEM TANPA LOKASI 🔥
+// 🔥 PENGURUTAN BERDASARKAN KODE ERP UNTUK ITEM TANPA LOKASI 🔥
 const tanpaLokasi = computed(() => {
   let items = []
   dbStok.value.forEach(i => {
@@ -401,15 +397,11 @@ const tanpaLokasi = computed(() => {
     )
   }
 
-  // ⚡ PROSES URUT ABJAD TANPA LOKASI
+  // ⚡ SEKARANG HANYA DIURUTKAN BERDASARKAN KODE ERP (A-Z)
   items.sort((a, b) => {
-    const nameA = (a.nama || '').toUpperCase()
-    const nameB = (b.nama || '').toUpperCase()
-    if (nameA < nameB) return -1
-    if (nameA > nameB) return 1
-    const colorA = (a.warna || '').toUpperCase()
-    const colorB = (b.warna || '').toUpperCase()
-    return colorA.localeCompare(colorB)
+    const erpA = (a.kodeErp || '').toUpperCase()
+    const erpB = (b.kodeErp || '').toUpperCase()
+    return erpA.localeCompare(erpB)
   })
 
   return items
@@ -575,7 +567,7 @@ onMounted(() => loadMasterBlok())
 .bg-primary-subtle { background: rgba(79, 70, 229, 0.1); }
 .text-primary { color: #4f46e5 !important; }
 .btn-close-custom {
-  background: transparent url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='%2364748b'%3e%3cpath d='M.293.293a1 1 0 0 1 1.414 0L8 6.586 14.293.293a1 1 0 1 1 1.414 1.414L9.414 8l6.293 6.293a1 1 0 0 1-1.414-1.414L6.586 8 .293 1.707a1 1 0 0 1 0-1.414z'/%3e%3c/svg%3e") center/1em auto no-repeat;
+  background: transparent url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='%2364748b'%3e%3cpath d='M.293.293a1 1 0 0 1 1.414 0L8 6.586 14.293.293a1 1 0 1 1 1.414 1.414L9.414 8l6.293 6.293a1 1 0 0 1-1.414 1.414L8 9.414l-6.293 6.293a1 1 0 0 1-1.414-1.414L6.586 8 .293 1.707a1 1 0 0 1 0-1.414z'/%3e%3c/svg%3e") center/1em auto no-repeat;
   border: none; width: 32px; height: 32px; opacity: 0.5; transition: opacity 0.2s; cursor:pointer;
 }
 .btn-close-custom:hover { opacity: 1; }

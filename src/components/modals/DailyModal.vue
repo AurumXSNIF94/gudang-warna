@@ -166,8 +166,9 @@ const loadData = async () => {
     const result = []
     Object.keys(all).forEach(pId => {
       Object.values(all[pId] || {}).forEach(trx => {
-        // 🔥 FILTER BARU: Buang mutasi dan opname
-        if (trx.tipe === 'MUTASI_MASUK' || trx.tipe === 'MUTASI_KELUAR' || trx.tipe === 'OPNAME') {
+        
+        // 🔥 LOGIKA WHITELIST: HANYA MELOLOSKAN MASUK & KELUAR 🔥
+        if (trx.tipe !== 'MASUK' && trx.tipe !== 'KELUAR') {
           return 
         }
 
@@ -226,7 +227,8 @@ const groupedLogs = computed(() => {
     if (!groups[key]) groups[key] = { tipe: r.tipe, ket: (r.keterangan || 'LAIN-LAIN').toUpperCase(), rows: [] }
     groups[key].rows.push(r)
   })
-  return Object.values(groups).sort((a, b) => ['MASUK','KELUAR','OPNAME'].indexOf(a.tipe) - ['MASUK','KELUAR','OPNAME'].indexOf(b.tipe))
+  // 🔥 UPDATE SORTING UNTUK MASUK & KELUAR SAJA
+  return Object.values(groups).sort((a, b) => ['MASUK','KELUAR'].indexOf(a.tipe) - ['MASUK','KELUAR'].indexOf(b.tipe))
 })
 
 const rekapMap = computed(() => {
@@ -269,5 +271,5 @@ onMounted(() => loadData())
 .badge-soft-secondary { background: var(--bg-main); color: var(--text-muted); }
 .rekap-box { background: var(--bg-main); border: 1px solid var(--border-color); border-radius: 12px; padding: 12px; }
 .rekap-label { font-size: 0.7rem; font-weight: 800; color: var(--text-muted); text-transform: uppercase; margin-bottom: 5px; }
-.btn-close-custom { background: transparent url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='%2364748b'%3e%3cpath d='M.293.293a1 1 0 0 1 1.414 0L8 6.586 14.293.293a1 1 0 1 1 1.414 1.414L9.414 8l6.293 6.293a1 1 0 0 1-1.414 1.414L8 9.414l-6.293 6.293a1 1 0 0 1-1.414-1.414L6.586 8 .293 1.707a1 1 0 0 1 0-1.414z'/%3e%3c/svg%3e") center/1em auto no-repeat; opacity: 0.5; }
+.btn-close-custom { background: transparent url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='%2364748b'%3e%3cpath d='M.293.293a1 1 0 0 1 1.414 0L8 6.586 14.293.293a1 1 0 1 1 1.414 1.414L9.414 8l6.293 6.293a1 1 0 0 1-1.414-1.414L6.586 8 .293 1.707a1 1 0 0 1 0-1.414z'/%3e%3c/svg%3e") center/1em auto no-repeat; opacity: 0.5; }
 </style>

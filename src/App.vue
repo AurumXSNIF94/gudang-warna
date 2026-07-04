@@ -17,10 +17,14 @@
       <NavBar />
       <div class="container pb-5">
         
-        <!-- 🔥 TOMBOL SAPU BERSIH (TEMPORARY) 🔥 -->
-<button v-if="currentRole === 'admin'" class="btn btn-danger fw-bold shadow-sm my-3 w-100" @click="sapuBersihDatabase">
-          <i class="fas fa-broom me-2"></i> BERSIHKAN DATABASE DARI BLOK SILUMAN
-        </button>
+        <div v-if="currentRole === 'admin'" class="d-flex gap-2 my-3">
+          <button class="btn btn-warning fw-bold shadow-sm flex-grow-1" @click="showTanpaLokasiModal = true">
+            <i class="fas fa-box-open me-2"></i> CEK STOK TANPA LOKASI
+          </button>
+          <button class="btn btn-danger fw-bold shadow-sm flex-grow-1" @click="sapuBersihDatabase">
+            <i class="fas fa-broom me-2"></i> BERSIHKAN BLOK SILUMAN
+          </button>
+        </div>
 
         <StickySearch />
         <div class="row g-4 mt-2">
@@ -52,6 +56,8 @@
       <AddModal v-if="showAddModal" @close="showAddModal = false" />
       <BatchModal v-if="showBatchModal" @close="showBatchModal = false" />
       <BlokModal v-if="showBlokModal" @close="showBlokModal = false" />
+      
+      <ModalTanpaLokasi v-if="showTanpaLokasiModal" @close="showTanpaLokasiModal = false" />
       
       <EditTransModal
         v-if="activeEditTrans"
@@ -86,6 +92,8 @@ import EditTransModal from './components/modals/EditTransModal.vue'
 import SelisihModal from './components/modals/SelisihModal.vue'
 import SuratJalanModal from './components/modals/SuratJalanModal.vue'
 import BlokModal from './components/modals/BlokModal.vue'
+// 🔥 IMPORT KOMPONEN BARU 🔥
+import ModalTanpaLokasi from './components/modals/ModalTanpaLokasi.vue'
 
 import { showDailyModal } from './composables/useDaily'
 import { showMutasiModal } from './composables/useMutasi'
@@ -99,9 +107,7 @@ import { showBlokModal } from './composables/useBlok'
 
 const { initAuth } = useAuth()
 
-// 🔥 KITA PANGGIL sapuBersihDatabase DI SINI 🔥
 const { refreshData, sapuBersihDatabase } = useStok()
-
 const { bukaRiwayat } = useHist()
 const { bukaTransaksi } = useTrans()
 
@@ -111,6 +117,9 @@ const isOffline    = ref(false)
 const itemsToShow  = ref(30)
 const histDrawerRef = ref(null)
 const dailyModalRef = ref(null)
+
+// 🔥 STATE UNTUK MODAL TANPA LOKASI 🔥
+const showTanpaLokasiModal = ref(false)
 
 const visibleItems   = computed(() => filteredItems.value.slice(0, itemsToShow.value))
 const showTransModal = computed(() => !!activeTrans.value)
@@ -128,7 +137,6 @@ initAuth(user => {
 const onTransaksi = (tipe, item) => bukaTransaksi(tipe, item)
 const onRiwayat   = (id) => bukaRiwayat(id)
 
-// Fungsi onEditSaved tetap ada untuk mereload data saat edit di dalam modal riwayat selesai
 const onEditSaved = () => {
   histDrawerRef.value?.reloadHist()
   dailyModalRef.value?.loadData()

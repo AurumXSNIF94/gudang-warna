@@ -247,9 +247,11 @@ const fmt = n => Number(n || 0).toLocaleString('id-ID', {
 const getItemBloks = (itemId) => {
   const item = dbStok.value.find(x => x.idUnik === itemId)
   if (!item?.bloks) return {}
+  
   const activeBloks = {}
   Object.entries(item.bloks).forEach(([k, v]) => {
-    if (parseFloat(v) > 0) activeBloks[k] = parseFloat(v)
+    // 🔥 UBAH DI SINI: Selama stoknya tidak sama dengan 0 (bisa positif, bisa minus), blok tetap muncul
+    if (parseFloat(v) !== 0) activeBloks[k] = parseFloat(v)
   })
   return activeBloks
 }

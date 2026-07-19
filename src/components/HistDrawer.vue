@@ -28,7 +28,20 @@
         </div>
       </div>
 
-      <div v-if="currentLogs.length" class="px-3 pt-2">
+      <!-- 🔥 TAMPIL JIKA ADA CHECKBOX YANG DICENTANG (ADMIN ONLY) 🔥 -->
+      <div v-if="isAdmin && checkedIds.length > 0" class="px-3 pt-3">
+        <button class="btn btn-danger fw-bold w-100 shadow-sm" @click="hapusRiwayatMassal" :disabled="isDeleting">
+          <i v-if="isDeleting" class="fas fa-circle-notch fa-spin me-2"></i>
+          <i v-else class="fas fa-trash-alt me-2"></i>
+          Hapus {{ checkedIds.length }} Transaksi Terpilih
+        </button>
+        <div class="text-center mt-2 small text-danger fw-bold">
+          <i class="fas fa-exclamation-triangle"></i> Peringatan: Stok akhir akan dikalkulasi ulang!
+        </div>
+      </div>
+
+      <!-- SUMMARY BOX (TOTAL IN & OUT) -->
+      <div v-else-if="currentLogs.length" class="px-3 pt-3">
         <div class="summary-box d-flex justify-content-between align-items-center shadow-sm">
           <div class="text-center flex-fill border-end border-light">
             <span class="d-block" style="font-size: 0.65rem; font-weight: 800; color: var(--text-muted);">TOTAL IN</span>
@@ -53,12 +66,18 @@
               <div class="hour">{{ formatTime(r.tanggal) }}</div>
             </div>
             
-            <div class="feed-card" :class="`border-${r.tipe.toLowerCase()}`">
+            <!-- Tambah class active kalau dicentang -->
+            <div class="feed-card" :class="[`border-${r.tipe.toLowerCase()}`, checkedIds.includes(r.trxId) ? 'card-selected' : '']">
               <div class="d-flex justify-content-between align-items-center mb-1">
                 <div class="d-flex align-items-center gap-2">
+                  <!-- Checkbox khusus Admin -->
+                  <input v-if="isAdmin" type="checkbox" class="form-check-input hist-checkbox m-0 shadow-sm" 
+                         :value="r.trxId" v-model="checkedIds">
+                         
                   <span class="badge-soft" :class="`badge-soft-${r.tipe.toLowerCase()}`">{{ r.tipe }}</span>
                   
-                  <button v-if="isAdmin" 
+                  <!-- Tombol Edit sembunyi kalau lagi mode centang massal -->
+                  <button v-if="isAdmin && checkedIds.length === 0" 
                           class="btn btn-sm btn-icon-edit" 
                           title="Edit Transaksi Ini"
                           @click="bukaEdit(r)">
@@ -93,7 +112,7 @@
 
 <script setup>
 import { ref, computed, watch, onUnmounted } from 'vue'
-import { ref as dbRef, onValue } from 'firebase/database'
+import { ref as dbRef, onValue, get, update } from 'firebase/database' // Tambah get & update
 import { db } from '../firebase'
 import { dbStok } from '../composables/useStok'
 import { activeHistId } from '../composables/useHist'
@@ -105,9 +124,11 @@ const emit = defineEmits(['close'])
 const fmt = (n) => Number(n || 0).toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
 const BULAN = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des']
-const allLogs = ref({}); 
-const activeMonth = ref(''); 
-const loadingHist = ref(false); 
+const allLogs = ref({})
+const activeMonth = ref('')
+const loadingHist = ref(false)
+const isDeleting = ref(false)
+const checkedIds = ref([]) // State penyimpan transaksi yang dicentang
 let unsubscribe = null
 
 const isAdmin = computed(() => currentRole.value === 'admin')
@@ -138,6 +159,7 @@ const loadHistoryData = (id) => {
   loadingHist.value = true
   allLogs.value = {}
   activeMonth.value = ''
+  checkedIds.value = [] // Reset centangan tiap kali ganti barang
   
   unsubscribe = onValue(dbRef(db, `riwayat_transaksi/${id}`), snap => {
     loadingHist.value = false
@@ -152,7 +174,9 @@ const loadHistoryData = (id) => {
     })
     
     allLogs.value = grouped
-    activeMonth.value = Object.keys(grouped).sort((a,b) => b.localeCompare(a))[0] || ''
+    if (!activeMonth.value) {
+      activeMonth.value = Object.keys(grouped).sort((a,b) => b.localeCompare(a))[0] || ''
+    }
   })
 }
 
@@ -165,6 +189,89 @@ const reloadHist = () => {
   if (activeHistId.value) loadHistoryData(activeHistId.value)
 }
 defineExpose({ reloadHist })
+
+// 🔥 FUNGSI HAPUS MASSAL & AUDIT KALKULASI ULANG STOK 🔥
+const hapusRiwayatMassal = async () => {
+  if (!checkedIds.value.length) return
+  
+  const konfirmasi = await window.Swal.fire({
+    title: `Hapus ${checkedIds.value.length} Transaksi?`,
+    text: 'Stok utama & stok per-blok akan dikalkulasi ulang secara otomatis.',
+    icon: 'warning',
+    showCancelButton: true,
+    confirmButtonColor: '#dc2626',
+    cancelButtonColor: '#64748b',
+    confirmButtonText: 'Ya, Hapus!'
+  })
+  if (!konfirmasi.isConfirmed) return
+
+  isDeleting.value = true
+  const itemId = activeItem.value.idUnik
+
+  try {
+    const delUpdates = {}
+    
+    // 1. Eksekusi Hapus dari Database
+    checkedIds.value.forEach(tId => {
+      delUpdates[`riwayat_transaksi/${itemId}/${tId}`] = null
+    })
+    await update(dbRef(db), delUpdates)
+    
+    // 2. Ambil Data Master & Sisa History untuk di-Audit ulang
+    const [snapM, snapH] = await Promise.all([
+      get(dbRef(db, `stok_benang/${itemId}`)), 
+      get(dbRef(db, `riwayat_transaksi/${itemId}`))
+    ])
+    
+    const itemMaster = snapM.val() || {}
+    const histories = snapH.val() || {}
+    const auditUp = {}
+    
+    let run = Number(itemMaster.stokAwal) || 0
+    const bloksAudit = {}
+    
+    const sisaHistori = Object.values(histories).sort((a, b) => new Date(a.tanggal) - new Date(b.tanggal))
+    
+    // 3. Mesin Hitung Ulang
+    sisaHistori.forEach(l => {
+      const q = Number(l.qty)
+      if (l.tipe === 'MASUK') { 
+        run += q; 
+        if (l.blok) bloksAudit[l.blok] = (parseFloat(bloksAudit[l.blok]) || 0) + q 
+      } else if (l.tipe === 'KELUAR') { 
+        run -= q; 
+        if (l.blok) bloksAudit[l.blok] = (parseFloat(bloksAudit[l.blok]) || 0) - q 
+      } else if (l.tipe === 'OPNAME') { 
+        if (l.blok) { 
+          run += (q - (parseFloat(bloksAudit[l.blok])||0)); 
+          bloksAudit[l.blok] = q 
+        } else {
+          run = q 
+        }
+      }
+      auditUp[`riwayat_transaksi/${itemId}/${l.trxId}/stokAkhir`] = parseFloat(run.toFixed(2))
+    })
+    
+    // 4. Filter nilai blok yang 0 agar bersih
+    Object.keys(bloksAudit).forEach(k => {
+      if (Math.abs(bloksAudit[k]) < 0.01) delete bloksAudit[k]
+    })
+    
+    // Update stok final di master barang
+    auditUp[`stok_benang/${itemId}/stok`] = parseFloat(run.toFixed(2))
+    auditUp[`stok_benang/${itemId}/bloks`] = Object.keys(bloksAudit).length ? bloksAudit : null
+    
+    // 5. Simpan Hasil Kalkulasi Baru ke DB
+    await update(dbRef(db), auditUp)
+    
+    checkedIds.value = [] // Reset Centangan
+    window.Swal.fire({ icon: 'success', title: 'Berhasil', text: 'Riwayat dihapus & stok disesuaikan ulang', timer: 2000, showConfirmButton: false })
+  } catch (error) {
+    window.Swal.fire('Error', error.message, 'error')
+  } finally {
+    isDeleting.value = false
+  }
+}
 
 watch(activeHistId, loadHistoryData, { immediate: true })
 onUnmounted(() => { if (unsubscribe) unsubscribe() })
@@ -187,9 +294,9 @@ onUnmounted(() => { if (unsubscribe) unsubscribe() })
 /* HEADER & CHIPS */
 .drawer-header { padding: 24px 20px; border-bottom: 1px solid var(--border-color); }
 .stok-tag { font-size: 0.7rem; font-weight: 800; background: rgba(16, 185, 129, 0.1); color: #10b981; padding: 2px 8px; border-radius: 6px; }
-.chips-container { padding: 12px 15px; background: var(--bg-main); }
+.chips-container { padding: 12px 15px; background: var(--bg-main); border-bottom: 1px solid var(--border-color); }
 .chips-scroll { display: flex; gap: 8px; overflow-x: auto; }
-.hist-chip { padding: 6px 14px; border-radius: 10px; font-size: 0.75rem; font-weight: 700; cursor: pointer; background: var(--bg-card); color: var(--text-muted); border: 1px solid var(--border-color); }
+.hist-chip { padding: 6px 14px; border-radius: 10px; font-size: 0.75rem; font-weight: 700; cursor: pointer; background: var(--bg-card); color: var(--text-muted); border: 1px solid var(--border-color); white-space: nowrap; }
 .hist-chip.active { background: #4f46e5; color: white; border-color: #4f46e5; }
 
 /* SUMMARY BOX (KOTAK TOTAL IN & OUT) */
@@ -204,7 +311,12 @@ onUnmounted(() => { if (unsubscribe) unsubscribe() })
 .feed-time { text-align: right; min-width: 50px; padding-top: 4px; color: var(--text-muted); }
 .day { font-size: 0.75rem; font-weight: 800; color: var(--text-main); }
 .hour { font-size: 0.65rem; }
-.feed-card { flex: 1; background: var(--bg-main); border-radius: 12px; padding: 12px 15px; border-left: 5px solid; }
+.feed-card { flex: 1; background: var(--bg-main); border-radius: 12px; padding: 12px 15px; border-left: 5px solid; transition: all 0.2s; }
+.card-selected { background: rgba(239, 68, 68, 0.05); border-color: #ef4444; }
+
+/* STYLE CHECKBOX */
+.hist-checkbox { width: 1.1rem; height: 1.1rem; cursor: pointer; border: 2px solid var(--border-color); }
+.hist-checkbox:checked { background-color: #ef4444; border-color: #ef4444; }
 
 /* STATUS COLORS & BADGES */
 .border-masuk { border-left-color: #10b981; }
@@ -228,4 +340,6 @@ onUnmounted(() => { if (unsubscribe) unsubscribe() })
 .btn-icon-edit:hover {
   background: rgba(14, 165, 233, 0.1); color: #0ea5e9; border-color: rgba(14, 165, 233, 0.3);
 }
+.border-top-dashed { border-top: 1px dashed var(--border-color); }
+.sisa-text { font-size: 0.75rem; font-weight: 700; color: var(--text-main); }
 </style>

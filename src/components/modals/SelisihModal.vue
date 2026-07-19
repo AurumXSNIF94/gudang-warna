@@ -3,125 +3,108 @@
     <div class="modal-dialog modal-dialog-centered modal-xl">
       <div class="modal-content modern-modal border-0 shadow-lg">
 
+        <!-- HEADER -->
         <div class="modal-header border-0 pb-3">
           <div class="w-100">
             <div class="d-flex justify-content-between align-items-center mb-2">
               <h5 class="modal-title fw-bold d-flex align-items-center gap-2 m-0" style="color: var(--text-main);">
-                <div class="icon-circle bg-warning-subtle text-warning">
-                  <i class="fas fa-balance-scale"></i>
+                <div class="icon-circle bg-primary-subtle text-primary">
+                  <i class="fas fa-server"></i>
                 </div>
-                Audit Selisih Fisik (Input Massal)
+                Cek Selisih vs ERP (Smart Paste)
               </h5>
               <button type="button" class="btn-close btn-close-custom" @click="$emit('close')"></button>
             </div>
+            <p class="text-muted small mb-0 mt-1">Bandingkan total stok di Aplikasi ini dengan data mutasi dari sistem ERP pusat.</p>
           </div>
         </div>
 
+        <!-- BODY -->
         <div class="modal-body p-4 pt-0" style="max-height: 70vh; overflow-y: auto; overflow-x: hidden;">
           <div class="row g-4">
             
+            <!-- STEP 1: PASTE BOX DARI EXCEL -->
             <div class="col-12">
-              <label class="fw-bold mb-2 section-label">
-                <span class="step-num">1</span> PASTE DATA DARI EXCEL (2 Kolom: Kode ERP & Qty Fisik)
+              <label class="fw-bold mb-2 section-label text-primary">
+                <span class="step-num bg-primary">1</span> PASTE DATA DARI EXCEL ERP (2 Kolom)
               </label>
               <textarea
                 class="form-control custom-textarea font-monospace"
                 rows="3"
-                placeholder="Format Excel: [Kode ERP / Lot] [Jumlah Fisik Timbangan]"
+                placeholder="Format Excel: [Kode ERP] [Total Qty di ERP]"
                 @paste="handlePaste"
               ></textarea>
               <div class="form-text small fw-medium mt-2" style="color: var(--text-muted)">
-                <i class="fas fa-info-circle me-1"></i> Cukup blok 2 kolom di Excel (Kode & Qty Fisik), lalu tekan CTRL+V di kotak atas.
+                <i class="fas fa-info-circle me-1"></i> Blok 2 kolom di Excel ERP (Kode ERP & Qty), lalu tekan CTRL+V di sini.
               </div>
             </div>
 
+            <!-- STEP 2: TABEL COMPARISON PREVIEW -->
             <div class="col-12 border-top-custom pt-3">
               <div class="d-flex justify-content-between align-items-center mb-3">
-                <label class="fw-bold m-0 section-label">
-                  <span class="step-num">2</span> HASIL PERBANDINGAN STOK & SELISIH FISIK
+                <label class="fw-bold m-0 section-label text-primary">
+                  <span class="step-num bg-primary">2</span> HASIL PERBANDINGAN
                 </label>
-                <button class="btn btn-sm btn-light-action px-3 fw-bold" style="border-radius: 8px;" @click="addEmptyRow">
-                  <i class="fas fa-plus me-1 text-primary"></i> Tambah Baris Manual
+                <button class="btn btn-sm btn-success px-3 fw-bold shadow-sm" style="border-radius: 8px;" @click="exportExcel" :disabled="!rows.length">
+                  <i class="fas fa-file-excel me-1"></i> Export Excel
                 </button>
               </div>
 
               <div class="table-container shadow-sm">
-                <table class="table modern-table mb-0">
+                <table class="table modern-table mb-0 align-middle">
                   <thead class="sticky-top" style="z-index: 10;">
                     <tr>
-                      <th style="width: 4%">#</th>
-                      <th style="width: 30%">KODE / KUNCI BARANG</th>
-                      <th style="width: 15%">WARNA</th>
-                      <th style="width: 15%" class="text-end">STOK SISTEM</th>
-                      <th style="width: 15%" class="text-center">FISIK (TIMBANGAN)</th>
-                      <th style="width: 16%" class="text-end">SELISIH</th>
-                      <th style="width: 5%" class="text-center">X</th>
+                      <th style="width: 5%" class="text-center">#</th>
+                      <th style="width: 25%">KODE ERP</th>
+                      <th style="width: 25%">NAMA BARANG</th>
+                      <th style="width: 15%" class="text-center">STOK APLIKASI</th>
+                      <th style="width: 15%" class="text-center">STOK ERP</th>
+                      <th style="width: 15%" class="text-end">SELISIH</th>
                     </tr>
                   </thead>
                   <tbody>
-                    <tr v-for="(row, idx) in rows" :key="idx" :class="row.itemId ? '' : 'row-warning'">
-                      <td class="text-center fw-bold text-muted">{{ idx + 1 }}</td>
-
-                      <td :style="{ position: 'relative', zIndex: activeDrop === idx ? 9999 : 1 }">
-                        <input
-                          class="form-control form-control-sm fw-bold custom-input table-input"
-                          v-model="row.rawKey"
-                          placeholder="Ketik/Paste Kode..."
-                          autocomplete="off"
-                          @input="onInput(row, idx)"
-                          @focus="onFocus(idx)"
-                          @blur="onBlur(idx)"
-                          @keydown.down.prevent="moveDown(idx)"
-                          @keydown.up.prevent="moveUp(idx)"
-                          @keydown.enter.prevent="pilihSuggestion(idx)"
-                        >
-                        <div v-if="activeDrop === idx && suggestions[idx]?.length" class="ac-dropdown-new">
-                          <div v-for="(sug, si) in suggestions[idx]" :key="sug.idUnik"
-                               :class="['ac-item-new', highlightIdx[idx] === si ? 'ac-active' : '']"
-                               @mousedown.prevent="pilihItem(row, idx, sug)">
-                            <span class="ac-kode">{{ sug.kodeErp }}</span>
-                            <span class="ac-sep">|</span>
-                            <span class="ac-nama">{{ sug.nama }}</span>
-                            <span class="ac-stok ms-auto">{{ fmt(sug.stok) }} Kg</span>
+                    <template v-if="rows.length">
+                      <tr v-for="(row, idx) in rows" :key="idx" :class="!row.itemId ? 'row-warning' : getSelisih(row) !== 0 ? 'row-danger' : ''">
+                        <td class="text-center fw-bold text-muted">{{ idx + 1 }}</td>
+                        
+                        <td class="font-monospace fw-bold" :class="row.itemId ? 'text-primary' : 'text-danger'">
+                          {{ row.kodeErp }}
+                          <div v-if="!row.itemId" class="small text-danger mt-1" style="font-size: 0.65rem;">
+                            <i class="fas fa-exclamation-triangle"></i> Tidak ada di Aplikasi
                           </div>
-                        </div>
-                        <div class="status-indicator mt-1" :class="row.itemId ? 'text-success' : 'text-danger'">
-                          <i :class="row.itemId ? 'fas fa-check-circle' : 'fas fa-times-circle'"></i>
-                          {{ row.itemId ? `Cocok: ${row.nama}` : 'Barang tidak ditemukan' }}
-                        </div>
-                      </td>
-
-                      <td class="small fw-bold text-muted text-truncate" style="max-width: 150px;">
-                        {{ row.warna || '-' }}
-                      </td>
-
-                      <td class="text-end fw-bold text-secondary fs-6">
-                        {{ row.itemId ? fmt(row.stokSistem) + ' Kg' : '-' }}
-                      </td>
-
-                      <td>
-                        <input type="number" step="any"
-                               class="form-control form-control-sm text-center fw-bold custom-input table-input py-0 bg-warning-subtle border-warning-subtle"
-                               style="height: 28px;"
-                               placeholder="0.00"
-                               v-model="row.qtyFisik">
-                      </td>
-
-                      <td class="text-end fw-bold fs-6">
-                        <div v-if="row.itemId && row.qtyFisik !== ''">
-                          <span :class="getSelisih(row) < 0 ? 'text-danger' : getSelisih(row) > 0 ? 'text-success' : 'text-muted'">
-                            {{ getSelisihTeks(row) }} Kg
+                        </td>
+                        
+                        <td class="fw-bold text-truncate" style="max-width: 200px;">
+                          {{ row.nama || 'Tidak Diketahui' }}
+                          <div v-if="row.warna" class="small text-muted fw-normal">{{ row.warna }}</div>
+                        </td>
+                        
+                        <td class="text-center fw-bold text-secondary fs-6">
+                          {{ row.itemId ? fmt(row.stokApp) : '-' }}
+                        </td>
+                        
+                        <td class="text-center">
+                          <span class="badge bg-light text-dark border px-3 py-2 fs-6 shadow-sm">
+                            {{ fmt(row.stokErp) }}
                           </span>
-                        </div>
-                        <span v-else class="text-muted">-</span>
-                      </td>
-
-                      <td class="text-center">
-                        <button class="btn btn-sm btn-icon-delete border-0 bg-transparent" @click="rows.splice(idx, 1)">
-                          <i class="fas fa-times"></i>
-                        </button>
-                      </td>
-                    </tr>
+                        </td>
+                        
+                        <td class="text-end fw-bold fs-5">
+                          <span v-if="row.itemId" :class="selisihColor(row)">
+                            {{ selisihTeks(row) }}
+                          </span>
+                          <span v-else class="text-muted">-</span>
+                        </td>
+                      </tr>
+                    </template>
+                    <template v-else>
+                      <tr>
+                        <td colspan="6" class="text-center text-muted py-5">
+                          <i class="fas fa-clipboard-list fs-2 mb-2 opacity-50"></i><br>
+                          Belum ada data yang di-paste.
+                        </td>
+                      </tr>
+                    </template>
                   </tbody>
                 </table>
               </div>
@@ -130,21 +113,30 @@
           </div>
         </div>
 
+        <!-- FOOTER SUMMARY & SUBMIT -->
         <div class="modal-footer border-0 p-4 pt-2 d-flex flex-column gap-3">
-          <div class="d-flex justify-content-between w-100 p-2 rounded" style="background: var(--bg-main)">
-            <div class="fw-bold small text-muted">Total Baris Cocok: <span class="text-success fs-6">{{ validCount }}</span></div>
-            <div class="fw-bold small text-muted">Total Akumulasi Selisih Fisik: 
-              <span :class="totalSelisih < 0 ? 'text-danger' : 'text-success'" class="fs-5 ms-1">{{ fmt(totalSelisih) }} Kg</span>
+          <div class="d-flex justify-content-between w-100 p-3 rounded" style="background: var(--bg-main); border: 1px dashed var(--border-color);">
+            <div class="d-flex gap-4">
+              <div class="fw-bold small text-muted">Total Baris: <span class="text-primary fs-6">{{ rows.length }}</span></div>
+              <div class="fw-bold small text-muted">Baris Bermasalah: <span class="text-danger fs-6">{{ errorCount }}</span></div>
+            </div>
+            <div class="fw-bold small text-muted">Total Selisih Akumulasi: 
+              <span :class="totalSelisih < 0 ? 'text-danger' : totalSelisih > 0 ? 'text-success' : 'text-muted'" class="fs-5 ms-1">
+                {{ totalSelisih > 0 ? '+' : '' }}{{ fmt(totalSelisih) }} Kg
+              </span>
             </div>
           </div>
           
-          <button class="btn btn-lg fw-bold w-100 shadow-sm btn-opname-submit text-white"
-                  :disabled="!validCount || submitting"
-                  @click="submitOpnameMassal">
-            <i v-if="submitting" class="fas fa-circle-notch fa-spin me-2"></i>
-            <i v-else class="fas fa-check-double me-2"></i>
-            {{ submitting ? 'Menyesuaikan Database...' : 'PROSES PENYESUAIAN ' + validCount + ' FISIK ITEM' }}
-          </button>
+          <div class="d-flex w-100 gap-2">
+            <button class="btn btn-light-action fw-bold px-4" @click="$emit('close')">Tutup</button>
+            <button class="btn btn-primary fw-bold flex-grow-1 shadow-sm"
+                    :disabled="!rows.length || submitting || errorCount === 0"
+                    @click="sesuaikanKeErp">
+              <i v-if="submitting" class="fas fa-circle-notch fa-spin me-2"></i>
+              <i v-else class="fas fa-sync-alt me-2"></i>
+              {{ submitting ? 'Mensinkronkan...' : 'SINKRONKAN APLIKASI AGAR SAMA DENGAN ERP' }}
+            </button>
+          </div>
         </div>
 
       </div>
@@ -153,7 +145,7 @@
 </template>
 
 <script setup>
-import { ref, computed, reactive } from 'vue'
+import { ref, computed } from 'vue'
 import { ref as dbRef, update } from 'firebase/database'
 import { db } from '../../firebase'
 import { dbStok, useStok } from '../../composables/useStok'
@@ -163,39 +155,39 @@ const { refreshData } = useStok()
 
 const submitting = ref(false)
 const rows = ref([])
-const activeDrop = ref(-1)
-const suggestions = reactive({})
-const highlightIdx = reactive({})
 
 const fmt = n => Number(n || 0).toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
-const validCount = computed(() => rows.value.filter(r => r.itemId && r.qtyFisik !== '').length)
-
-// Hitung nilai selisih per baris
+// Hitungan Selisih (ERP - App) -> Positif berarti Aplikasi kurang, Minus berarti Aplikasi kelebihan
 const getSelisih = (row) => {
-  const fisik = parseFloat(row.qtyFisik) || 0
-  const sistem = parseFloat(row.stokSistem) || 0
-  return fisik - sistem
+  if (!row.itemId) return 0
+  const erp = parseFloat(row.stokErp) || 0
+  const app = parseFloat(row.stokApp) || 0
+  return erp - app
 }
 
-const getSelisihTeks = (row) => {
+const selisihColor = (row) => {
+  const val = getSelisih(row)
+  if (val > 0) return 'text-success' // App kurang, harus ditambah
+  if (val < 0) return 'text-danger'  // App lebih, harus dikurangi
+  return 'text-muted' // Sinkron (0)
+}
+
+const selisihTeks = (row) => {
   const val = getSelisih(row)
   return val > 0 ? `+${fmt(val)}` : fmt(val)
 }
 
-// Akumulasi total seluruh selisih di tabel
-const totalSelisih = computed(() => {
-  return rows.value.reduce((sum, r) => {
-    if (!r.itemId || r.qtyFisik === '') return sum
-    return sum + getSelisih(r)
-  }, 0)
+// Menghitung baris yang selisihnya tidak nol atau barang tidak ditemukan
+const errorCount = computed(() => {
+  return rows.value.filter(r => !r.itemId || getSelisih(r) !== 0).length
 })
 
-const addEmptyRow = () => {
-  rows.value.push({ rawKey: '', itemId: '', kodeErp: '', nama: '', warna: '', qtyFisik: '', stokSistem: 0 })
-}
+const totalSelisih = computed(() => {
+  return rows.value.reduce((sum, r) => sum + getSelisih(r), 0)
+})
 
-// FORMAT PASTE: KODE_ERP [TAB] QTY_FISIK
+// FORMAT PASTE: KODE_ERP [TAB] QTY_ERP
 const handlePaste = (e) => {
   e.preventDefault()
   const pasted = (e.clipboardData || window.clipboardData).getData('text')
@@ -212,72 +204,70 @@ const handlePaste = (e) => {
     if (!rawKey) return
 
     let cleanQty = rawQty.replace(/,/g, '.')
-    const qtyFisik = parseFloat(cleanQty)
+    const qtyErp = parseFloat(cleanQty)
 
-    // Match ke database
-    const item = dbStok.value.find(i => (i.kodeErp || '').toUpperCase() === rawKey.toUpperCase() || (i.nama || '').toUpperCase() === rawKey.toUpperCase())
+    // Cari match dengan database aplikasi
+    const item = dbStok.value.find(i => (i.kodeErp || '').toUpperCase() === rawKey.toUpperCase())
 
     rows.value.push({
-      rawKey,
+      kodeErp: rawKey,
       itemId: item ? item.idUnik : '',
-      kodeErp: item ? item.kodeErp : '',
       nama: item ? item.nama : '',
       warna: item ? item.warna : '',
-      stokSistem: item ? parseFloat(item.stok) || 0 : 0,
-      qtyFisik: isNaN(qtyFisik) ? '' : qtyFisik
+      stokApp: item ? parseFloat(item.stok) || 0 : 0,
+      stokErp: isNaN(qtyErp) ? 0 : qtyErp
     })
   })
 }
 
-// Logika Autocomplete Manual jika diketik
-const cariSuggestions = q => {
-  if (!q) return []
-  const tokens = q.toUpperCase().trim().split(/\s+/)
-  return dbStok.value.filter(i => {
-    const h = [i.kodeErp || '', i.nama || '', i.warna || ''].join(' ').toUpperCase()
-    return tokens.every(t => h.includes(t))
-  }).slice(0, 10)
+// Export hasil komparasi ke Excel untuk disetor ke pusat
+const exportExcel = () => {
+  if (!rows.value.length) return
+  const dataToExport = [
+    ['LAPORAN CEK SELISIH: APLIKASI VS ERP'],
+    [`Tanggal: ${new Date().toLocaleDateString('id-ID')} ${new Date().toLocaleTimeString('id-ID')}`],
+    [],
+    ['KODE ERP', 'NAMA BARANG', 'WARNA', 'STOK APLIKASI (KG)', 'STOK ERP (KG)', 'SELISIH (KG)', 'STATUS']
+  ]
+
+  rows.value.forEach(r => {
+    const selisih = getSelisih(r)
+    let status = 'SINKRON'
+    if (!r.itemId) status = 'TIDAK ADA DI APLIKASI'
+    else if (selisih !== 0) status = 'TIDAK SINKRON'
+
+    dataToExport.push([
+      r.kodeErp,
+      r.nama || '-',
+      r.warna || '-',
+      r.itemId ? r.stokApp : 0,
+      r.stokErp,
+      r.itemId ? selisih : 0,
+      status
+    ])
+  })
+
+  const ws = window.XLSX.utils.aoa_to_sheet(dataToExport)
+  const wb = window.XLSX.utils.book_new()
+  window.XLSX.utils.book_append_sheet(wb, ws, 'Selisih_ERP')
+  window.XLSX.writeFile(wb, `Laporan_Selisih_ERP_${new Date().toISOString().slice(0, 10)}.xlsx`)
 }
 
-const onInput = (row, idx) => {
-  row.itemId = ''; row.kodeErp = ''; row.nama = ''; row.warna = ''; row.stokSistem = 0
-  suggestions[idx] = cariSuggestions(row.rawKey)
-  highlightIdx[idx] = -1
-  activeDrop.value = suggestions[idx].length ? idx : -1
-}
-
-const onFocus = idx => {
-  const row = rows.value[idx]
-  if (row.rawKey && !row.itemId) {
-    suggestions[idx] = cariSuggestions(row.rawKey)
-    if (suggestions[idx].length) activeDrop.value = idx
+// Fitur Opsional: Paksa aplikasi mengikuti angka ERP (Opname Otomatis)
+const sesuaikanKeErp = async () => {
+  const validToSync = rows.value.filter(r => r.itemId && getSelisih(r) !== 0)
+  if (!validToSync.length) {
+    window.Swal.fire('Info', 'Semua data yang valid sudah sinkron dengan ERP.', 'info')
+    return
   }
-}
-
-const onBlur = idx => { setTimeout(() => { if (activeDrop.value === idx) activeDrop.value = -1 }, 180) }
-
-const pilihItem = (row, idx, item) => {
-  row.rawKey = item.kodeErp
-  row.itemId = item.idUnik
-  row.kodeErp = item.kodeErp
-  row.nama = item.nama
-  row.warna = item.warna || ''
-  row.stokSistem = parseFloat(item.stok) || 0
-  activeDrop.value = -1
-}
-
-// Kunci eksekusi massal menimpa database (OPNAME STRATEGY)
-const submitOpnameMassal = async () => {
-  const valid = rows.value.filter(r => r.itemId && r.qtyFisik !== '')
-  if (!valid.length) return
 
   const confirm = await window.Swal.fire({
-    title: `Proses Penyesuaian ${valid.length} Item?`,
-    html: `Stok lama di sistem akan langsung digantikan dengan data berat timbangan fisik baru.`,
+    title: `Sinkronkan ${validToSync.length} Item?`,
+    html: `Stok aplikasi akan ditimpa (di-opname otomatis) mengikuti angka ERP.`,
     icon: 'warning',
     showCancelButton: true,
-    confirmButtonColor: '#f59e0b',
-    confirmButtonText: 'Ya, Eksekusi!'
+    confirmButtonColor: '#3b82f6',
+    confirmButtonText: 'Ya, Sinkronkan!'
   })
   if (!confirm.isConfirmed) return
 
@@ -287,32 +277,32 @@ const submitOpnameMassal = async () => {
     const nowIso = new Date().toISOString()
     const baseTime = Date.now()
 
-    valid.forEach((row, i) => {
+    validToSync.forEach((row, i) => {
       const item = dbStok.value.find(x => x.idUnik === row.itemId)
       if (!item) return
 
-      const qtyFisikBaru = parseFloat(row.qtyFisik)
-      const trxId = 'BCH_OPN_' + (baseTime + i)
+      const qtyErpTarget = parseFloat(row.stokErp)
+      const trxId = 'BCH_ERP_' + (baseTime + i)
 
-      // Timpa stok total utama dengan nilai timbangan fisik baru
-      updates[`stok_benang/${row.itemId}/stok`] = qtyFisikBaru
+      // Menimpa stok dengan angka ERP
+      updates[`stok_benang/${row.itemId}/stok`] = qtyErpTarget
       updates[`stok_benang/${row.itemId}/tglUpdate`] = nowIso
 
-      // Catat ke log riwayat transaksi sebagai OPNAME
+      // Catat sebagai OPNAME (Penyesuaian ERP)
       updates[`riwayat_transaksi/${row.itemId}/${trxId}`] = {
         trxId,
         kodeErp: item.kodeErp,
-        qty: qtyFisikBaru,
-        stokAkhir: qtyFisikBaru,
+        qty: qtyErpTarget,
+        stokAkhir: qtyErpTarget,
         tanggal: nowIso,
         tipe: 'OPNAME',
-        blok: '', // Penyesuaian global utama
-        keterangan: 'OPNAME MASAL FISIK'
+        blok: '', 
+        keterangan: 'SINKRONISASI SISTEM ERP'
       }
     })
 
     await update(dbRef(db), updates)
-    window.Swal.fire({ icon: 'success', title: 'Database Berhasil Disinkronkan!', timer: 1500, showConfirmButton: false })
+    window.Swal.fire({ icon: 'success', title: 'Aplikasi Sudah Sinkron dengan ERP!', timer: 1500, showConfirmButton: false })
     refreshData()
     emit('close')
   } catch (e) {
@@ -321,46 +311,34 @@ const submitOpnameMassal = async () => {
     submitting.value = false
   }
 }
-
-// Inisialisasi baris kosong di awal modal buka
-for (let i = 0; i < 5; i++) addEmptyRow()
 </script>
 
 <style scoped>
 .modern-modal { border-radius: 24px; background: var(--bg-card); overflow: hidden; }
 .backdrop-blur { background: rgba(15, 23, 42, 0.6); backdrop-filter: blur(4px); }
 .icon-circle { width: 40px; height: 40px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; }
-.bg-warning-subtle { background: rgba(245, 158, 11, 0.15); color: #d97706; }
 
-.section-label { font-size: 0.8rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
-.step-num { display: inline-block; width: 20px; height: 20px; line-height: 20px; text-align: center; background: #f59e0b; color: white; border-radius: 50%; font-size: 0.7rem; margin-right: 4px; }
+.bg-primary-subtle { background: rgba(59, 130, 246, 0.15); color: #3b82f6; }
+.text-primary { color: #3b82f6 !important; }
+
+.section-label { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.5px; }
+.step-num { display: inline-block; width: 20px; height: 20px; line-height: 20px; text-align: center; color: white; border-radius: 50%; font-size: 0.7rem; margin-right: 4px; }
+.bg-primary { background-color: #3b82f6 !important; }
 
 .custom-textarea { background: var(--bg-card); color: var(--text-main); border: 2px dashed var(--border-color); border-radius: 12px; padding: 16px; font-size: 0.85rem; }
-.custom-textarea:focus { border-color: #f59e0b; box-shadow: 0 0 0 4px rgba(245, 158, 11, 0.1); outline: none; }
+.custom-textarea:focus { border-color: #3b82f6; box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1); outline: none; }
 .border-top-custom { border-top: 1px dashed var(--border-color); }
 
-.table-container { border-radius: 12px; border: 1px solid var(--border-color); }
+.table-container { border-radius: 12px; border: 1px solid var(--border-color); max-height: 40vh; overflow-y: auto; }
 .modern-table th { background: var(--bg-main); color: var(--text-muted); font-size: 0.75rem; text-transform: uppercase; padding: 12px 8px; border-bottom: 2px solid var(--border-color); }
-.modern-table td { background: var(--bg-card); border-bottom: 1px solid var(--border-color); vertical-align: middle; padding: 8px; }
-.row-warning td { background: rgba(245, 158, 11, 0.03); }
+.modern-table td { background: var(--bg-card); border-bottom: 1px solid var(--border-color); padding: 8px; }
 
-.table-input { border-color: transparent; background: transparent; padding: 4px; }
-.table-input:focus { border-color: #818cf8; background: var(--bg-main); }
-.bg-warning-subtle { background: rgba(245, 158, 11, 0.08) !important; color: var(--text-main); }
+/* Warna Indikator Row */
+.row-warning td { background: rgba(245, 158, 11, 0.05); }
+.row-danger td { background: rgba(239, 68, 68, 0.05); }
 
-.btn-icon-delete { color: var(--text-muted); }
-.btn-icon-delete:hover { color: #ef4444; }
-.status-indicator { font-size: 0.65rem; font-weight: 600; }
-
-.ac-dropdown-new { position: absolute; top: calc(100% + 2px); left: 0; right: 0; background: var(--bg-card); border: 1px solid #f59e0b; border-radius: 8px; z-index: 9999; max-height: 200px; overflow-y: auto; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.2); }
-.ac-item-new { padding: 8px 12px; cursor: pointer; font-size: 0.8rem; border-bottom: 1px solid var(--border-color); display: flex; align-items: center; gap: 6px; }
-.ac-item-new:hover, .ac-active { background: var(--bg-main); }
-.ac-kode { font-weight: 700; color: #f59e0b; min-width: 100px; }
-.ac-nama { color: var(--text-main); flex: 1; text-overflow: ellipsis; white-space: nowrap; overflow: hidden; }
-.ac-stok { font-weight: 700; color: #10b981; }
-
-.btn-opname-submit { background: linear-gradient(135deg, #f59e0b, #d97706); border: none; padding: 14px; border-radius: 12px; }
-.btn-opname-submit:hover:not(:disabled) { transform: translateY(-1px); filter: brightness(1.05); }
-.btn-light-action { background: var(--bg-main); color: var(--text-muted); border: 1px solid var(--border-color); }
+.btn-primary { background: linear-gradient(135deg, #3b82f6, #2563eb); border: none; padding: 14px; border-radius: 12px; }
+.btn-primary:hover:not(:disabled) { transform: translateY(-1px); filter: brightness(1.05); }
+.btn-light-action { background: var(--bg-main); color: var(--text-muted); border: 1px solid var(--border-color); border-radius: 12px; }
 .btn-light-action:hover { background: var(--border-color); color: var(--text-main); }
 </style>

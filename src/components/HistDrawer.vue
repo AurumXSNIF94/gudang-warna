@@ -28,19 +28,19 @@
         </div>
       </div>
 
-      <!-- 🔥 TAMPIL JIKA ADA CHECKBOX YANG DICENTANG (ADMIN ONLY) 🔥 -->
+      <!-- 🔥 AKSI HAPUS MUNCUL JIKA ADA YANG DICENTANG 🔥 -->
       <div v-if="isAdmin && checkedIds.length > 0" class="px-3 pt-3">
         <button class="btn btn-danger fw-bold w-100 shadow-sm" @click="hapusRiwayatMassal" :disabled="isDeleting">
           <i v-if="isDeleting" class="fas fa-circle-notch fa-spin me-2"></i>
           <i v-else class="fas fa-trash-alt me-2"></i>
-          Hapus {{ checkedIds.length }} Transaksi Terpilih
+          Hapus {{ checkedIds.length }} Transaksi
         </button>
         <div class="text-center mt-2 small text-danger fw-bold">
           <i class="fas fa-exclamation-triangle"></i> Peringatan: Stok akhir akan dikalkulasi ulang!
         </div>
       </div>
 
-      <!-- SUMMARY BOX (TOTAL IN & OUT) -->
+      <!-- SUMMARY BOX -->
       <div v-else-if="currentLogs.length" class="px-3 pt-3">
         <div class="summary-box d-flex justify-content-between align-items-center shadow-sm">
           <div class="text-center flex-fill border-end border-light">
@@ -66,17 +66,15 @@
               <div class="hour">{{ formatTime(r.tanggal) }}</div>
             </div>
             
-            <!-- Tambah class active kalau dicentang -->
-            <div class="feed-card" :class="[`border-${r.tipe.toLowerCase()}`, checkedIds.includes(r.trxId) ? 'card-selected' : '']">
+            <div class="feed-card" :class="['border-' + r.tipe.toLowerCase(), checkedIds.includes(r.trxId) ? 'card-selected' : '']">
               <div class="d-flex justify-content-between align-items-center mb-1">
                 <div class="d-flex align-items-center gap-2">
-                  <!-- Checkbox khusus Admin -->
+                  <!-- CHECKBOX -->
                   <input v-if="isAdmin" type="checkbox" class="form-check-input hist-checkbox m-0 shadow-sm" 
                          :value="r.trxId" v-model="checkedIds">
                          
                   <span class="badge-soft" :class="`badge-soft-${r.tipe.toLowerCase()}`">{{ r.tipe }}</span>
                   
-                  <!-- Tombol Edit sembunyi kalau lagi mode centang massal -->
                   <button v-if="isAdmin && checkedIds.length === 0" 
                           class="btn btn-sm btn-icon-edit" 
                           title="Edit Transaksi Ini"
@@ -112,9 +110,9 @@
 
 <script setup>
 import { ref, computed, watch, onUnmounted } from 'vue'
-import { ref as dbRef, onValue, get, update } from 'firebase/database' // Tambah get & update
+import { ref as dbRef, onValue, get, update } from 'firebase/database'
 import { db } from '../firebase'
-import { dbStok } from '../composables/useStok'
+import { dbStok } from '../composables/useStok' // <-- KEMBALI KE ASLI LU, TANPA useStok()
 import { activeHistId } from '../composables/useHist'
 import { currentRole } from '../composables/useAuth'
 import { activeEditTrans } from '../composables/useEditTrans'
@@ -128,7 +126,7 @@ const allLogs = ref({})
 const activeMonth = ref('')
 const loadingHist = ref(false)
 const isDeleting = ref(false)
-const checkedIds = ref([]) // State penyimpan transaksi yang dicentang
+const checkedIds = ref([]) 
 let unsubscribe = null
 
 const isAdmin = computed(() => currentRole.value === 'admin')
@@ -159,7 +157,7 @@ const loadHistoryData = (id) => {
   loadingHist.value = true
   allLogs.value = {}
   activeMonth.value = ''
-  checkedIds.value = [] // Reset centangan tiap kali ganti barang
+  checkedIds.value = [] // Kosongkan centangan saat ganti item
   
   unsubscribe = onValue(dbRef(db, `riwayat_transaksi/${id}`), snap => {
     loadingHist.value = false
@@ -190,7 +188,7 @@ const reloadHist = () => {
 }
 defineExpose({ reloadHist })
 
-// 🔥 FUNGSI HAPUS MASSAL & AUDIT KALKULASI ULANG STOK 🔥
+// MESIN HAPUS & HITUNG ULANG OTOMATIS
 const hapusRiwayatMassal = async () => {
   if (!checkedIds.value.length) return
   
@@ -211,13 +209,11 @@ const hapusRiwayatMassal = async () => {
   try {
     const delUpdates = {}
     
-    // 1. Eksekusi Hapus dari Database
     checkedIds.value.forEach(tId => {
       delUpdates[`riwayat_transaksi/${itemId}/${tId}`] = null
     })
     await update(dbRef(db), delUpdates)
     
-    // 2. Ambil Data Master & Sisa History untuk di-Audit ulang
     const [snapM, snapH] = await Promise.all([
       get(dbRef(db, `stok_benang/${itemId}`)), 
       get(dbRef(db, `riwayat_transaksi/${itemId}`))
@@ -232,7 +228,6 @@ const hapusRiwayatMassal = async () => {
     
     const sisaHistori = Object.values(histories).sort((a, b) => new Date(a.tanggal) - new Date(b.tanggal))
     
-    // 3. Mesin Hitung Ulang
     sisaHistori.forEach(l => {
       const q = Number(l.qty)
       if (l.tipe === 'MASUK') { 
@@ -252,20 +247,17 @@ const hapusRiwayatMassal = async () => {
       auditUp[`riwayat_transaksi/${itemId}/${l.trxId}/stokAkhir`] = parseFloat(run.toFixed(2))
     })
     
-    // 4. Filter nilai blok yang 0 agar bersih
     Object.keys(bloksAudit).forEach(k => {
       if (Math.abs(bloksAudit[k]) < 0.01) delete bloksAudit[k]
     })
     
-    // Update stok final di master barang
     auditUp[`stok_benang/${itemId}/stok`] = parseFloat(run.toFixed(2))
     auditUp[`stok_benang/${itemId}/bloks`] = Object.keys(bloksAudit).length ? bloksAudit : null
     
-    // 5. Simpan Hasil Kalkulasi Baru ke DB
     await update(dbRef(db), auditUp)
     
-    checkedIds.value = [] // Reset Centangan
-    window.Swal.fire({ icon: 'success', title: 'Berhasil', text: 'Riwayat dihapus & stok disesuaikan ulang', timer: 2000, showConfirmButton: false })
+    checkedIds.value = [] 
+    window.Swal.fire({ icon: 'success', title: 'Berhasil', text: 'Riwayat dihapus & stok disesuaikan', timer: 2000, showConfirmButton: false })
   } catch (error) {
     window.Swal.fire('Error', error.message, 'error')
   } finally {

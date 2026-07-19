@@ -23,11 +23,20 @@
         <div class="modal-body p-4 pt-0" style="max-height: 70vh; overflow-y: auto; overflow-x: hidden;">
           <div class="row g-4">
             
-            <!-- STEP 1: PASTE BOX DARI EXCEL -->
+            <!-- STEP 1: TANGGAL & PASTE BOX -->
             <div class="col-12">
-              <label class="fw-bold mb-2 section-label text-primary">
-                <span class="step-num bg-primary">1</span> PASTE DATA DARI EXCEL ERP (2 Kolom)
-              </label>
+              <div class="d-flex justify-content-between align-items-end mb-2">
+                <label class="fw-bold section-label text-primary m-0">
+                  <span class="step-num bg-primary">1</span> PASTE DATA DARI EXCEL ERP (2 Kolom)
+                </label>
+                <!-- 🔥 INPUT TANGGAL DI SINI 🔥 -->
+                <div class="d-flex align-items-center gap-2">
+                  <label class="small fw-bold text-muted m-0">Tanggal Penyesuaian:</label>
+                  <input type="datetime-local" class="form-control form-control-sm fw-bold border-primary-subtle" 
+                         style="width: 200px; background: var(--bg-card); color: var(--text-main);"
+                         v-model="tanggalOpname">
+                </div>
+              </div>
               <textarea
                 class="form-control custom-textarea font-monospace"
                 rows="3"
@@ -156,9 +165,15 @@ const { refreshData } = useStok()
 const submitting = ref(false)
 const rows = ref([])
 
+// Setup Tanggal Default ke waktu lokal saat ini
+const getWaktuLokal = () => {
+  const tzOffset = (new Date()).getTimezoneOffset() * 60000
+  return (new Date(Date.now() - tzOffset)).toISOString().slice(0, 16)
+}
+const tanggalOpname = ref(getWaktuLokal())
+
 const fmt = n => Number(n || 0).toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
-// Hitungan Selisih (ERP - App) -> Positif berarti Aplikasi kurang, Minus berarti Aplikasi kelebihan
 const getSelisih = (row) => {
   if (!row.itemId) return 0
   const erp = parseFloat(row.stokErp) || 0
@@ -168,9 +183,9 @@ const getSelisih = (row) => {
 
 const selisihColor = (row) => {
   const val = getSelisih(row)
-  if (val > 0) return 'text-success' // App kurang, harus ditambah
-  if (val < 0) return 'text-danger'  // App lebih, harus dikurangi
-  return 'text-muted' // Sinkron (0)
+  if (val > 0) return 'text-success'
+  if (val < 0) return 'text-danger'
+  return 'text-muted'
 }
 
 const selisihTeks = (row) => {
@@ -178,7 +193,6 @@ const selisihTeks = (row) => {
   return val > 0 ? `+${fmt(val)}` : fmt(val)
 }
 
-// Menghitung baris yang selisihnya tidak nol atau barang tidak ditemukan
 const errorCount = computed(() => {
   return rows.value.filter(r => !r.itemId || getSelisih(r) !== 0).length
 })
@@ -187,7 +201,6 @@ const totalSelisih = computed(() => {
   return rows.value.reduce((sum, r) => sum + getSelisih(r), 0)
 })
 
-// FORMAT PASTE: KODE_ERP [TAB] QTY_ERP
 const handlePaste = (e) => {
   e.preventDefault()
   const pasted = (e.clipboardData || window.clipboardData).getData('text')
@@ -206,7 +219,6 @@ const handlePaste = (e) => {
     let cleanQty = rawQty.replace(/,/g, '.')
     const qtyErp = parseFloat(cleanQty)
 
-    // Cari match dengan database aplikasi
     const item = dbStok.value.find(i => (i.kodeErp || '').toUpperCase() === rawKey.toUpperCase())
 
     rows.value.push({
@@ -220,12 +232,15 @@ const handlePaste = (e) => {
   })
 }
 
-// Export hasil komparasi ke Excel untuk disetor ke pusat
 const exportExcel = () => {
   if (!rows.value.length) return
+  
+  // Ambil tanggal dari picker untuk ditaruh di laporan Excel
+  const tglReport = new Date(tanggalOpname.value)
+  
   const dataToExport = [
     ['LAPORAN CEK SELISIH: APLIKASI VS ERP'],
-    [`Tanggal: ${new Date().toLocaleDateString('id-ID')} ${new Date().toLocaleTimeString('id-ID')}`],
+    [`Tanggal Cut-Off / Sinkronisasi: ${tglReport.toLocaleDateString('id-ID')} ${tglReport.toLocaleTimeString('id-ID')}`],
     [],
     ['KODE ERP', 'NAMA BARANG', 'WARNA', 'STOK APLIKASI (KG)', 'STOK ERP (KG)', 'SELISIH (KG)', 'STATUS']
   ]
@@ -250,10 +265,9 @@ const exportExcel = () => {
   const ws = window.XLSX.utils.aoa_to_sheet(dataToExport)
   const wb = window.XLSX.utils.book_new()
   window.XLSX.utils.book_append_sheet(wb, ws, 'Selisih_ERP')
-  window.XLSX.writeFile(wb, `Laporan_Selisih_ERP_${new Date().toISOString().slice(0, 10)}.xlsx`)
+  window.XLSX.writeFile(wb, `Laporan_Selisih_ERP_${tanggalOpname.value.split('T')[0]}.xlsx`)
 }
 
-// Fitur Opsional: Paksa aplikasi mengikuti angka ERP (Opname Otomatis)
 const sesuaikanKeErp = async () => {
   const validToSync = rows.value.filter(r => r.itemId && getSelisih(r) !== 0)
   if (!validToSync.length) {
@@ -263,7 +277,7 @@ const sesuaikanKeErp = async () => {
 
   const confirm = await window.Swal.fire({
     title: `Sinkronkan ${validToSync.length} Item?`,
-    html: `Stok aplikasi akan ditimpa (di-opname otomatis) mengikuti angka ERP.`,
+    html: `Stok aplikasi akan ditimpa (di-opname otomatis) mengikuti angka ERP pada tanggal yang dipilih.`,
     icon: 'warning',
     showCancelButton: true,
     confirmButtonColor: '#3b82f6',
@@ -274,27 +288,31 @@ const sesuaikanKeErp = async () => {
   submitting.value = true
   try {
     const updates = {}
-    const nowIso = new Date().toISOString()
-    const baseTime = Date.now()
+    
+    // Ambil base time dari input tanggal
+    let baseTimeObj = new Date(tanggalOpname.value)
+    if (isNaN(baseTimeObj.getTime())) baseTimeObj = new Date()
+    const baseTime = baseTimeObj.getTime()
 
     validToSync.forEach((row, i) => {
       const item = dbStok.value.find(x => x.idUnik === row.itemId)
       if (!item) return
 
       const qtyErpTarget = parseFloat(row.stokErp)
-      const trxId = 'BCH_ERP_' + (baseTime + i)
+      
+      // Bikin interval tiap transaksi selisih 1 detik biar nggak numpuk dan urut riwayatnya
+      const rowIsoDate = new Date(baseTime + (i * 1000)).toISOString()
+      const trxId = 'BCH_ERP_' + (baseTime + (i * 1000))
 
-      // Menimpa stok dengan angka ERP
       updates[`stok_benang/${row.itemId}/stok`] = qtyErpTarget
-      updates[`stok_benang/${row.itemId}/tglUpdate`] = nowIso
+      updates[`stok_benang/${row.itemId}/tglUpdate`] = rowIsoDate
 
-      // Catat sebagai OPNAME (Penyesuaian ERP)
       updates[`riwayat_transaksi/${row.itemId}/${trxId}`] = {
         trxId,
         kodeErp: item.kodeErp,
         qty: qtyErpTarget,
         stokAkhir: qtyErpTarget,
-        tanggal: nowIso,
+        tanggal: rowIsoDate,
         tipe: 'OPNAME',
         blok: '', 
         keterangan: 'SINKRONISASI SISTEM ERP'
@@ -320,6 +338,7 @@ const sesuaikanKeErp = async () => {
 
 .bg-primary-subtle { background: rgba(59, 130, 246, 0.15); color: #3b82f6; }
 .text-primary { color: #3b82f6 !important; }
+.border-primary-subtle { border: 1px solid rgba(59, 130, 246, 0.3); }
 
 .section-label { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.5px; }
 .step-num { display: inline-block; width: 20px; height: 20px; line-height: 20px; text-align: center; color: white; border-radius: 50%; font-size: 0.7rem; margin-right: 4px; }
@@ -333,7 +352,6 @@ const sesuaikanKeErp = async () => {
 .modern-table th { background: var(--bg-main); color: var(--text-muted); font-size: 0.75rem; text-transform: uppercase; padding: 12px 8px; border-bottom: 2px solid var(--border-color); }
 .modern-table td { background: var(--bg-card); border-bottom: 1px solid var(--border-color); padding: 8px; }
 
-/* Warna Indikator Row */
 .row-warning td { background: rgba(245, 158, 11, 0.05); }
 .row-danger td { background: rgba(239, 68, 68, 0.05); }
 

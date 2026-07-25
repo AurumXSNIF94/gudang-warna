@@ -41,7 +41,6 @@
             @riwayat="onRiwayat"
             @cek-random="onCekRandom" 
           />
-          <!-- 🔥 PERUBAHAN: Tambah @cek-random="onCekRandom" di atas 🔥 -->
         </div>
         
         <div v-if="!filteredItems.length" class="empty-state">
@@ -74,7 +73,9 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useAuth, currentRole } from './composables/useAuth'
-import { useStok, itemVelocity, loading } from './composables/useStok'
+
+// 🔥 PERUBAHAN: Tambah dbStok di sini biar bisa narik nama-nama blok dari database
+import { useStok, itemVelocity, loading, dbStok } from './composables/useStok' 
 import { filteredItems } from './composables/useFilter'
 import { useTrans, activeTrans } from './composables/useTrans'
 import { useHist, activeHistId } from './composables/useHist'
@@ -107,8 +108,6 @@ import { showSuratJalanModal } from './composables/useSuratJalan'
 import { showBlokModal } from './composables/useBlok'
 
 const { initAuth } = useAuth()
-
-// 🔥 PERUBAHAN: Tarik fungsi catatStokRandom dari useStok 🔥
 const { refreshData, sapuBersihDatabase, catatStokRandom } = useStok()
 const { bukaRiwayat } = useHist()
 const { bukaTransaksi } = useTrans()
@@ -136,14 +135,43 @@ initAuth(user => {
 const onTransaksi = (tipe, item) => bukaTransaksi(tipe, item)
 const onRiwayat   = (id) => bukaRiwayat(id)
 
-// 🔥 PERUBAHAN: Fungsi baru buat Pop-up SweetAlert Cek Random 🔥
 const getWaktuLokal = () => {
   const tzOffset = (new Date()).getTimezoneOffset() * 60000
   return (new Date(Date.now() - tzOffset)).toISOString().slice(0, 16)
 }
 
+// 🔥 FUNGSI CEK RANDOM YANG UDAH PAKAI DROPDOWN BLOK 🔥
 const onCekRandom = async (item) => {
   const defaultWaktu = getWaktuLokal()
+
+  // 1. Ambil semua nama blok yang lagi kepakai di gudang
+  const setBlok = new Set()
+  dbStok.value.forEach(itm => {
+    if (itm.bloks) {
+      Object.keys(itm.bloks).forEach(k => {
+        const upper = k.trim().toUpperCase()
+        if (upper && !upper.includes('TANPA LOKASI') && upper !== 'NULL') {
+          setBlok.add(k.trim())
+        }
+      })
+    }
+  })
+  const bloksTersedia = Array.from(setBlok).sort()
+
+  // 2. Tentukan otomatis blok mana yang mau dipilih duluan
+  let defaultBlok = 'Tanpa Lokasi'
+  if (item.bloks) {
+    const sorted = Object.entries(item.bloks)
+      .filter(([k]) => !k.toUpperCase().includes('TANPA LOKASI'))
+      .sort((a, b) => b[1] - a[1]) 
+    if (sorted.length > 0) defaultBlok = sorted[0][0]
+  }
+
+  // 3. Susun opsi untuk List HTML nya
+  let blokOptions = `<option value="Tanpa Lokasi" ${defaultBlok === 'Tanpa Lokasi' ? 'selected' : ''}>Tanpa Lokasi</option>`
+  bloksTersedia.forEach(b => {
+    blokOptions += `<option value="${b}" ${b === defaultBlok ? 'selected' : ''}>${b}</option>`
+  })
 
   const { value: formValues } = await window.Swal.fire({
     title: `Cek Random: ${item.nama}`,
@@ -151,10 +179,16 @@ const onCekRandom = async (item) => {
       <div class="text-start mb-3 small text-muted" style="line-height:1.2;">
         Fitur ini hanya mencatat ke riwayat, tidak merubah total stok aplikasi.
       </div>
+      
       <div class="text-start mb-1 fw-bold small text-primary">Tanggal & Waktu Cek:</div>
       <input id="swal-tgl" type="datetime-local" class="swal2-input mt-0 mb-3" style="width: 85%; font-family: monospace;" value="${defaultWaktu}">
+      
+      <div class="text-start mb-1 fw-bold small text-primary">Lokasi Rak/Blok:</div>
+      <select id="swal-blok" class="swal2-select mt-0 mb-3" style="width: 85%; font-size: 0.95rem; max-width: 100%;">
+        ${blokOptions}
+      </select>
+      
       <input id="swal-qty" class="swal2-input mt-0" placeholder="Hasil Hitung (Kg) - Cth: 50.5" type="number" step="0.01">
-      <input id="swal-blok" class="swal2-input" placeholder="Di Rak/Blok mana? (Opsional)">
       <input id="swal-ket" class="swal2-input" placeholder="Keterangan (Opsional)">
     `,
     focusConfirm: false,
@@ -183,7 +217,6 @@ const onCekRandom = async (item) => {
     }
   }
 }
-// 🔥 BATAS PERUBAHAN 🔥
 
 const onEditSaved = () => {
   histDrawerRef.value?.reloadHist()

@@ -96,7 +96,7 @@
               
               <!-- INFO SELISIH KHUSUS CEK RANDOM -->
               <div v-if="r.tipe === 'CEK_RANDOM'" class="mb-2 mt-1 d-flex align-items-center gap-1">
-                <span class="small text-muted fw-bold" style="font-size: 0.7rem;">Sisa Cek thd Sistem:</span>
+                <span class="small text-muted fw-bold" style="font-size: 0.7rem;">Selisih Stok :</span>
                 <span class="badge-soft shadow-sm" 
                       :class="(r.qty - r.calculatedBal) > 0 ? 'badge-soft-masuk' : ((r.qty - r.calculatedBal) < 0 ? 'badge-soft-keluar' : 'badge-soft-secondary')"
                       style="font-size: 0.65rem; padding: 2px 6px;">

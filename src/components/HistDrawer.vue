@@ -67,8 +67,10 @@
             </div>
             
             <div class="feed-card" :class="['border-' + r.tipe.toLowerCase(), checkedIds.includes(r.trxId) ? 'card-selected' : '']">
-              <div class="d-flex justify-content-between align-items-center mb-1">
-                <div class="d-flex align-items-center gap-2">
+              
+              <!-- 🔥 BAGIAN ATAS: Checkbox, Badge, Edit, dan QTY UTAMA 🔥 -->
+              <div class="d-flex justify-content-between align-items-start mb-1 gap-2">
+                <div class="d-flex align-items-center gap-2 flex-wrap">
                   <!-- CHECKBOX -->
                   <input v-if="isAdmin" type="checkbox" class="form-check-input hist-checkbox m-0 shadow-sm" 
                          :value="r.trxId" v-model="checkedIds">
@@ -83,20 +85,30 @@
                   </button>
                 </div>
                 
-                <!-- 🔥 PERUBAHAN: TAMBAH ICON SEARCH UNTUK CEK RANDOM 🔥 -->
-                <span class="fw-bold fs-6" :class="`text-${r.tipe.toLowerCase()}`">
-                  <i v-if="r.tipe === 'CEK_RANDOM'" class="fas fa-search me-1 fs-6"></i>
+                <!-- QTY UTAMA (Terkunci satu baris dengan white-space: nowrap) -->
+                <span class="fw-bold fs-6 text-end" :class="`text-${r.tipe.toLowerCase()}`" style="white-space: nowrap;">
                   {{ r.tipe === 'MASUK' ? '+' : r.tipe === 'KELUAR' ? '-' : '' }}{{ fmt(r.qty) }} Kg
                 </span>
               </div>
               
+              <!-- 🔥 BAGIAN TENGAH: Keterangan & Badge Selisih 🔥 -->
               <div class="fw-bold small text-main mb-1">{{ r.keterangan || '-' }}</div>
+              
+              <!-- INFO SELISIH KHUSUS CEK RANDOM -->
+              <div v-if="r.tipe === 'CEK_RANDOM'" class="mb-2 mt-1 d-flex align-items-center gap-1">
+                <span class="small text-muted fw-bold" style="font-size: 0.7rem;">Sisa Cek thd Sistem:</span>
+                <span class="badge-soft shadow-sm" 
+                      :class="(r.qty - r.calculatedBal) > 0 ? 'badge-soft-masuk' : ((r.qty - r.calculatedBal) < 0 ? 'badge-soft-keluar' : 'badge-soft-secondary')"
+                      style="font-size: 0.65rem; padding: 2px 6px;">
+                  {{ (r.qty - r.calculatedBal) > 0 ? '+' : '' }}{{ fmt(r.qty - r.calculatedBal) }} Kg
+                </span>
+              </div>
               
               <div class="d-flex justify-content-between align-items-center mt-2 pt-2 border-top-dashed">
                 <span class="small text-muted">
                   <i class="fas fa-warehouse me-1 opacity-50"></i> {{ r.blok || 'Tanpa Lokasi' }}
                 </span>
-                <span class="sisa-text">Sisa: {{ fmt(r.calculatedBal) }}</span>
+                <span class="sisa-text">Sisa Akhir: {{ fmt(r.calculatedBal) }}</span>
               </div>
             </div>
           </div>

@@ -48,11 +48,28 @@ export function useStok() {
     }
   }
 
+  // 🔥 PERUBAHAN: refreshData SEKARANG PUNYA FITUR OFFLINE CACHE 🔥
   const refreshData = () => {
     if (isListening) return
     isListening = true
     
-    loading.value = true
+    // 1. CEK MEMORI LOKAL DULU (Buat jaga-jaga kalau offline & loading instan)
+    const cacheLokal = localStorage.getItem('GUDANG_STOK_CACHE')
+    if (cacheLokal) {
+      try {
+        const arrLokal = JSON.parse(cacheLokal)
+        dbStok.value = arrLokal
+        kalkulasiVelocity(arrLokal)
+        loading.value = false // Kalau udah ada cache, gausah tampilin loading
+      } catch (e) {
+        console.error("Gagal baca cache lokal:", e)
+        loading.value = true
+      }
+    } else {
+      loading.value = true // Loading cuma muncul kalau baru pertama kali banget buka
+    }
+
+    // 2. TETAP TARIK DARI SERVER (Sync Background)
     onValue(dbRef(db, 'stok_benang'), snap => {
       const data = snap.val()
       const arr = []
@@ -65,6 +82,9 @@ export function useStok() {
       dbStok.value = arr
       kalkulasiVelocity(arr) 
       loading.value = false
+      
+      // 3. UPDATE MEMORI LOKAL TIAP ADA PERUBAHAN DARI SERVER
+      localStorage.setItem('GUDANG_STOK_CACHE', JSON.stringify(arr))
     })
   }
 
@@ -120,7 +140,6 @@ export function useStok() {
               bloksTemp[lokasi] = q
             }
           }
-          // CATATAN: l.tipe === 'CEK_RANDOM' akan dilewati otomatis oleh audit ini
           
           updates[`riwayat_transaksi/${parentId}/${l.trxId}/stokAkhir`] = parseFloat(totalStok.toFixed(2))
         })
@@ -251,7 +270,6 @@ export function useStok() {
     await update(dbRef(db), updates)
   }
 
-  // 🔥 FITUR BARU: MENCATAT STOK ACAK KE RIWAYAT SAJA 🔥
   const catatStokRandom = async (idUnik, qtyRandom, ket, lokasi, tglCustom) => {
     const item = dbStok.value.find(x => x.idUnik === idUnik)
     if (!item) return
@@ -322,6 +340,5 @@ export function useStok() {
     }
   }
 
-  // 🔥 JANGAN LUPA: catatStokRandom udah didaftarkan di sini
   return { refreshData, jalankanAudit, kirimTransaksi, kirimMutasi, sapuBersihDatabase, catatStokRandom } 
 }

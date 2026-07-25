@@ -39,7 +39,9 @@
             :role="currentRole"
             @transaksi="onTransaksi"
             @riwayat="onRiwayat"
+            @cek-random="onCekRandom" 
           />
+          <!-- 🔥 PERUBAHAN: Tambah @cek-random="onCekRandom" di atas 🔥 -->
         </div>
         
         <div v-if="!filteredItems.length" class="empty-state">
@@ -106,7 +108,8 @@ import { showBlokModal } from './composables/useBlok'
 
 const { initAuth } = useAuth()
 
-const { refreshData, sapuBersihDatabase } = useStok()
+// 🔥 PERUBAHAN: Tarik fungsi catatStokRandom dari useStok 🔥
+const { refreshData, sapuBersihDatabase, catatStokRandom } = useStok()
 const { bukaRiwayat } = useHist()
 const { bukaTransaksi } = useTrans()
 
@@ -132,6 +135,55 @@ initAuth(user => {
 
 const onTransaksi = (tipe, item) => bukaTransaksi(tipe, item)
 const onRiwayat   = (id) => bukaRiwayat(id)
+
+// 🔥 PERUBAHAN: Fungsi baru buat Pop-up SweetAlert Cek Random 🔥
+const getWaktuLokal = () => {
+  const tzOffset = (new Date()).getTimezoneOffset() * 60000
+  return (new Date(Date.now() - tzOffset)).toISOString().slice(0, 16)
+}
+
+const onCekRandom = async (item) => {
+  const defaultWaktu = getWaktuLokal()
+
+  const { value: formValues } = await window.Swal.fire({
+    title: `Cek Random: ${item.nama}`,
+    html: `
+      <div class="text-start mb-3 small text-muted" style="line-height:1.2;">
+        Fitur ini hanya mencatat ke riwayat, tidak merubah total stok aplikasi.
+      </div>
+      <div class="text-start mb-1 fw-bold small text-primary">Tanggal & Waktu Cek:</div>
+      <input id="swal-tgl" type="datetime-local" class="swal2-input mt-0 mb-3" style="width: 85%; font-family: monospace;" value="${defaultWaktu}">
+      <input id="swal-qty" class="swal2-input mt-0" placeholder="Hasil Hitung (Kg) - Cth: 50.5" type="number" step="0.01">
+      <input id="swal-blok" class="swal2-input" placeholder="Di Rak/Blok mana? (Opsional)">
+      <input id="swal-ket" class="swal2-input" placeholder="Keterangan (Opsional)">
+    `,
+    focusConfirm: false,
+    showCancelButton: true,
+    confirmButtonText: 'Simpan Catatan',
+    preConfirm: () => {
+      const qty = document.getElementById('swal-qty').value
+      const blok = document.getElementById('swal-blok').value
+      const ket = document.getElementById('swal-ket').value
+      const tgl = document.getElementById('swal-tgl').value 
+      
+      if (!qty) {
+        window.Swal.showValidationMessage('Jumlah (Kg) wajib diisi!')
+        return false
+      }
+      return { qty: parseFloat(qty), blok, ket, tgl }
+    }
+  })
+
+  if (formValues) {
+    try {
+      await catatStokRandom(item.idUnik, formValues.qty, formValues.ket, formValues.blok, formValues.tgl)
+      window.Swal.fire({ icon: 'success', title: 'Tersimpan', text: 'Catatan stok random berhasil masuk riwayat!', timer: 2000, showConfirmButton: false })
+    } catch (e) {
+      window.Swal.fire('Error', e.message, 'error')
+    }
+  }
+}
+// 🔥 BATAS PERUBAHAN 🔥
 
 const onEditSaved = () => {
   histDrawerRef.value?.reloadHist()

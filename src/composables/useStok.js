@@ -112,7 +112,7 @@ export function useStok() {
             if (lokasi === 'Tanpa Lokasi') {
               totalStok = q
               for (let key in bloksTemp) delete bloksTemp[key]
-              if (q !== 0) bloksTemp['Tanpa Lokasi'] = q  // <--- PERBAIKAN: Izinkan Opname Minus
+              if (q !== 0) bloksTemp['Tanpa Lokasi'] = q  
             } else {
               const stokBlokLama = parseFloat(bloksTemp[lokasi] || 0)
               const selisih = q - stokBlokLama
@@ -120,13 +120,13 @@ export function useStok() {
               bloksTemp[lokasi] = q
             }
           }
+          // CATATAN: l.tipe === 'CEK_RANDOM' akan dilewati otomatis oleh audit ini
           
           updates[`riwayat_transaksi/${parentId}/${l.trxId}/stokAkhir`] = parseFloat(totalStok.toFixed(2))
         })
 
         Object.keys(bloksTemp).forEach(b => {
           bloksTemp[b] = parseFloat(bloksTemp[b].toFixed(2))
-          // 🔥 PERBAIKAN UTAMA: Hanya hapus jika persis 0. Angka minus dibiarkan.
           if (bloksTemp[b] === 0) delete bloksTemp[b] 
         })
 
@@ -143,11 +143,9 @@ export function useStok() {
     }
   }
 
-  // 🔥 PERBAIKAN: Fungsi ini dipakai pas Transaksi Tunggal & Mutasi
   const bersihkanBlok = (bloksObj) => {
     Object.keys(bloksObj).forEach(b => {
       const upperB = String(b).trim().toUpperCase()
-      // Ganti Math.abs(bloksObj[b]) <= 0.001 (yg ngehapus minus), jadi persis ngecek angka 0
       if (upperB.includes('TANPA LOKASI') || upperB === 'NULL' || upperB === '' || bloksObj[b] === 0) {
         delete bloksObj[b]
       } else {
@@ -189,7 +187,7 @@ export function useStok() {
     }
 
     sBaru = parseFloat(sBaru.toFixed(2))
-    bersihkanBlok(bloks) // <--- Sekarang fungsi ini memaafkan saldo minus
+    bersihkanBlok(bloks) 
 
     const now = new Date()
     const trxId = 'TRX_' + now.getTime()
@@ -228,7 +226,7 @@ export function useStok() {
       bloks[tujuan] = parseFloat(parseFloat(bloks[tujuan] || 0).toFixed(2)) + qty
     }
 
-    bersihkanBlok(bloks) // <--- Sekarang fungsi ini memaafkan saldo minus
+    bersihkanBlok(bloks) 
 
     const now = new Date()
     const trxOut = 'TRX_' + now.getTime() + '_MO' 
@@ -250,6 +248,37 @@ export function useStok() {
       blok: tujuan || "Tanpa Lokasi", keterangan: `DARI ${asal || 'TANPA LOKASI'}`
     }
 
+    await update(dbRef(db), updates)
+  }
+
+  // 🔥 FITUR BARU: MENCATAT STOK ACAK KE RIWAYAT SAJA 🔥
+  const catatStokRandom = async (idUnik, qtyRandom, ket, lokasi, tglCustom) => {
+    const item = dbStok.value.find(x => x.idUnik === idUnik)
+    if (!item) return
+
+    const sSaatIni = Number(item.stok) || 0 
+    
+    let baseTimeObj = tglCustom ? new Date(tglCustom) : new Date()
+    if (isNaN(baseTimeObj.getTime())) baseTimeObj = new Date() 
+    
+    const nowIso = baseTimeObj.toISOString()
+    const trxId = 'TRX_' + baseTimeObj.getTime() + '_RND' 
+    
+    const rawBlok = (lokasi || "").trim().toUpperCase()
+    const blokNama = (rawBlok === "" || rawBlok.includes("TANPA LOKASI")) ? "Tanpa Lokasi" : rawBlok
+
+    const updates = {}
+    
+    updates[`riwayat_transaksi/${idUnik}/${trxId}`] = {
+      trxId,
+      qty: qtyRandom, 
+      stokAkhir: sSaatIni, 
+      tanggal: nowIso, 
+      tipe: 'CEK_RANDOM', 
+      blok: blokNama, 
+      keterangan: ket || "Pengecekan Stok Acak"
+    }
+    
     await update(dbRef(db), updates)
   }
 
@@ -293,5 +322,6 @@ export function useStok() {
     }
   }
 
-  return { refreshData, jalankanAudit, kirimTransaksi, kirimMutasi, sapuBersihDatabase } 
+  // 🔥 JANGAN LUPA: catatStokRandom udah didaftarkan di sini
+  return { refreshData, jalankanAudit, kirimTransaksi, kirimMutasi, sapuBersihDatabase, catatStokRandom } 
 }

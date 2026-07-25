@@ -82,13 +82,21 @@
         <button class="btn btn-action btn-out flex-grow-1" @click="$emit('transaksi', 'KELUAR', item)">
           <i class="fas fa-arrow-up me-1"></i> Keluar
         </button>
+        
+        <!-- Action Buttons Mini -->
         <button class="btn btn-action btn-light-action border" title="Riwayat" @click="$emit('riwayat', item.idUnik)">
           <i class="fas fa-history text-secondary"></i>
         </button>
         <button class="btn btn-action btn-audit-action" title="Opname" @click="$emit('transaksi', 'OPNAME', item)">
           <i class="fas fa-check-double"></i>
         </button>
+        
+        <!-- 🔥 TOMBOL BARU: CEK RANDOM (Warna Ungu) 🔥 -->
+        <button class="btn btn-action btn-random-action" title="Cek Random Fisik" @click="$emit('cek-random', item)">
+          <i class="fas fa-search"></i>
+        </button>
       </div>
+      
       <div v-else class="d-grid">
         <button class="btn btn-action btn-light-action border w-100 d-flex justify-content-center align-items-center" @click="$emit('riwayat', item.idUnik)">
           <i class="fas fa-history me-2 text-primary"></i> Lihat Riwayat
@@ -108,7 +116,8 @@ const props = defineProps({
   role: String
 })
 
-defineEmits(['transaksi', 'riwayat'])
+// 🔥 PERUBAHAN: Tambah 'cek-random' di defineEmits 🔥
+defineEmits(['transaksi', 'riwayat', 'cek-random'])
 
 const fmt = n => Number(n || 0).toLocaleString('id-ID', {
   minimumFractionDigits: 2, maximumFractionDigits: 2
@@ -191,7 +200,7 @@ const sisaTanpaBlok = computed(() => {
 :global([data-bs-theme="dark"]) .badge-soft-warning { color: #f59e0b; }
 .badge-soft-secondary { background: var(--bg-main); color: var(--text-muted); }
 
-/* 🔥 SYSTEM GRID BERSIH (2 KOLOM) 🔥 */
+/* SYSTEM GRID BERSIH (2 KOLOM) */
 .blok-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
@@ -201,14 +210,14 @@ const sisaTanpaBlok = computed(() => {
   grid-column: span 2;
 }
 
-/* 🔥 STYLE BARU: CONSTRUCT SPLIT PILL (DUAL TONE) 🔥 */
+/* STYLE BARU: CONSTRUCT SPLIT PILL (DUAL TONE) */
 .pill-split-normal, .pill-split-warning, .pill-split-danger {
   display: flex;
   align-items: center;
   justify-content: space-between;
   background: var(--bg-main);
   border-radius: 10px;
-  padding: 3px 3px 3px 10px; /* ruang kiri longgar, kanan mepet ke sub-badge */
+  padding: 3px 3px 3px 10px; 
   font-size: 0.78rem;
   font-weight: 600;
   border: 1px solid var(--border-color);
@@ -269,10 +278,16 @@ const sisaTanpaBlok = computed(() => {
 .btn-in:hover { background: rgba(16, 185, 129, 0.2); }
 .btn-out { background: rgba(239, 68, 68, 0.1); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.2); }
 .btn-out:hover { background: rgba(239, 68, 68, 0.2); }
+
 .btn-light-action { background: var(--bg-card); color: var(--text-muted); border-color: var(--border-color); }
 .btn-light-action:hover { background: var(--bg-main); border-color: var(--text-muted); }
+
 .btn-audit-action { background: rgba(245, 158, 11, 0.1); color: #d97706; border: 1px solid rgba(245, 158, 11, 0.2); }
 .btn-audit-action:hover { background: rgba(245, 158, 11, 0.2); }
+
+/* 🔥 STYLE TOMBOL CEK RANDOM 🔥 */
+.btn-random-action { background: rgba(139, 92, 246, 0.1); color: #8b5cf6; border: 1px solid rgba(139, 92, 246, 0.2); }
+.btn-random-action:hover { background: rgba(139, 92, 246, 0.2); }
 
 .fast-pulse { animation: pulse-danger 2s infinite; }
 @keyframes pulse-danger {

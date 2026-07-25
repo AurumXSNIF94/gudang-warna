@@ -83,7 +83,9 @@
                   </button>
                 </div>
                 
+                <!-- 🔥 PERUBAHAN: TAMBAH ICON SEARCH UNTUK CEK RANDOM 🔥 -->
                 <span class="fw-bold fs-6" :class="`text-${r.tipe.toLowerCase()}`">
+                  <i v-if="r.tipe === 'CEK_RANDOM'" class="fas fa-search me-1 fs-6"></i>
                   {{ r.tipe === 'MASUK' ? '+' : r.tipe === 'KELUAR' ? '-' : '' }}{{ fmt(r.qty) }} Kg
                 </span>
               </div>
@@ -112,7 +114,7 @@
 import { ref, computed, watch, onUnmounted } from 'vue'
 import { ref as dbRef, onValue, get, update } from 'firebase/database'
 import { db } from '../firebase'
-import { dbStok } from '../composables/useStok' // <-- KEMBALI KE ASLI LU, TANPA useStok()
+import { dbStok } from '../composables/useStok' 
 import { activeHistId } from '../composables/useHist'
 import { currentRole } from '../composables/useAuth'
 import { activeEditTrans } from '../composables/useEditTrans'
@@ -321,6 +323,12 @@ onUnmounted(() => { if (unsubscribe) unsubscribe() })
 .badge-soft-masuk { background: rgba(16, 185, 129, 0.1); color: #10b981; }
 .badge-soft-keluar { background: rgba(239, 68, 68, 0.1); color: #ef4444; }
 .badge-soft-opname { background: rgba(245, 158, 11, 0.1); color: #f59e0b; }
+
+/* 🔥 TAMBAHAN UNTUK CEK RANDOM (Warna Ungu) 🔥 */
+.border-cek_random { border-left-color: #8b5cf6 !important; }
+.text-cek_random { color: #8b5cf6 !important; }
+.badge-soft-cek_random { background: rgba(139, 92, 246, 0.1) !important; color: #8b5cf6 !important; }
+
 .btn-close-custom { background: var(--bg-main); border: 1px solid var(--border-color); width: 32px; height: 32px; border-radius: 8px; color: var(--text-muted); display: flex; align-items: center; justify-content: center; }
 
 /* TOMBOL EDIT RIWAYAT */

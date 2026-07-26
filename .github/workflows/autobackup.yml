@@ -1,4 +1,3 @@
-# File: .github/workflows/autobackup.yml
 name: 🗄️ Auto Backup Database Firebase
 
 on:
@@ -35,8 +34,10 @@ jobs:
           # 2. Kompres semua file .json jadi .gz (Menyusut 90%!)
           gzip -f database-backups/*.json
           
-          # 3. Hapus otomatis file backup yang udah lebih tua dari 30 hari
-          find database-backups/ -name "*.gz" -type f -mtime +30 -delete
+          # 3. Hapus file lama (Sisakan 30 file terbaru berdasarkan urutan abjad/tanggal)
+          cd database-backups
+          ls -1r *.gz | tail -n +31 | xargs -r rm -f
+          cd ..
 
       - name: 💾 Commit & Push Hasil Backup ke Repo
         run: |

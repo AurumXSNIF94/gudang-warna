@@ -28,8 +28,9 @@
             <i class="fas fa-broom me-2"></i> BERSIHKAN BLOK SILUMAN
           </button>
 
-          <!-- 🔥 TAMBAHAN: Tombol untuk buka Kelola Admin 🔥 -->
-          <button class="btn fw-bold shadow-sm flex-grow-1" 
+          <!-- 🔥 KUNCI GANDA: Tombol Ini Cuma Muncul di Layar manoramasnif@gmail.com 🔥 -->
+          <button v-if="currentUser?.email?.toLowerCase() === 'manoramasnif@gmail.com'"
+                  class="btn fw-bold shadow-sm flex-grow-1" 
                   style="background-color: #3b82f6; color: white; border: none;" 
                   @click="showAdminModal = true">
             <i class="fas fa-users-cog me-2"></i> KELOLA ADMIN

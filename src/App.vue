@@ -27,6 +27,13 @@
           <button class="btn btn-danger fw-bold shadow-sm flex-grow-1" @click="sapuBersihDatabase">
             <i class="fas fa-broom me-2"></i> BERSIHKAN BLOK SILUMAN
           </button>
+
+          <!-- 🔥 TAMBAHAN: Tombol untuk buka Kelola Admin 🔥 -->
+          <button class="btn fw-bold shadow-sm flex-grow-1" 
+                  style="background-color: #3b82f6; color: white; border: none;" 
+                  @click="showAdminModal = true">
+            <i class="fas fa-users-cog me-2"></i> KELOLA ADMIN
+          </button>
         </div>
 
         <StickySearch />
@@ -61,6 +68,9 @@
       <BatchModal v-if="showBatchModal" @close="showBatchModal = false" />
       <BlokModal v-if="showBlokModal" @close="showBlokModal = false" />
       
+      <!-- 🔥 TAMBAHAN: Komponen AdminModal di-render di sini 🔥 -->
+      <AdminModal v-if="showAdminModal" @close="showAdminModal = false" />
+      
       <EditTransModal
         v-if="activeEditTrans"
         @close="activeEditTrans = null"
@@ -74,7 +84,6 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useAuth, currentRole } from './composables/useAuth'
 
-// 🔥 PERUBAHAN: Tambah dbStok di sini biar bisa narik nama-nama blok dari database
 import { useStok, itemVelocity, loading, dbStok } from './composables/useStok' 
 import { filteredItems } from './composables/useFilter'
 import { useTrans, activeTrans } from './composables/useTrans'
@@ -96,6 +105,8 @@ import EditTransModal from './components/modals/EditTransModal.vue'
 import SelisihModal from './components/modals/SelisihModal.vue'
 import SuratJalanModal from './components/modals/SuratJalanModal.vue'
 import BlokModal from './components/modals/BlokModal.vue'
+// 🔥 TAMBAHAN: Import file AdminModal.vue lu 🔥
+import AdminModal from './components/modals/AdminModal.vue'
 
 import { showDailyModal } from './composables/useDaily'
 import { showMutasiModal } from './composables/useMutasi'
@@ -119,6 +130,9 @@ const itemsToShow  = ref(30)
 const histDrawerRef = ref(null)
 const dailyModalRef = ref(null)
 
+// 🔥 TAMBAHAN: State biar modalnya bisa disembunyi/tampil 🔥
+const showAdminModal = ref(false)
+
 const visibleItems   = computed(() => filteredItems.value.slice(0, itemsToShow.value))
 const showTransModal = computed(() => !!activeTrans.value)
 const showHistDrawer = computed(() => !!activeHistId.value)
@@ -140,11 +154,9 @@ const getWaktuLokal = () => {
   return (new Date(Date.now() - tzOffset)).toISOString().slice(0, 16)
 }
 
-// 🔥 FUNGSI CEK RANDOM YANG UDAH PAKAI DROPDOWN BLOK 🔥
 const onCekRandom = async (item) => {
   const defaultWaktu = getWaktuLokal()
 
-  // 1. Ambil semua nama blok yang lagi kepakai di gudang
   const setBlok = new Set()
   dbStok.value.forEach(itm => {
     if (itm.bloks) {
@@ -158,7 +170,6 @@ const onCekRandom = async (item) => {
   })
   const bloksTersedia = Array.from(setBlok).sort()
 
-  // 2. Tentukan otomatis blok mana yang mau dipilih duluan
   let defaultBlok = 'Tanpa Lokasi'
   if (item.bloks) {
     const sorted = Object.entries(item.bloks)
@@ -167,7 +178,6 @@ const onCekRandom = async (item) => {
     if (sorted.length > 0) defaultBlok = sorted[0][0]
   }
 
-  // 3. Susun opsi untuk List HTML nya
   let blokOptions = `<option value="Tanpa Lokasi" ${defaultBlok === 'Tanpa Lokasi' ? 'selected' : ''}>Tanpa Lokasi</option>`
   bloksTersedia.forEach(b => {
     blokOptions += `<option value="${b}" ${b === defaultBlok ? 'selected' : ''}>${b}</option>`

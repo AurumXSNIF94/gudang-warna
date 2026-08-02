@@ -94,6 +94,12 @@
               <!-- 🔥 BAGIAN TENGAH: Keterangan & Badge Selisih 🔥 -->
               <div class="fw-bold small text-main mb-1">{{ r.keterangan || '-' }}</div>
               
+              <!-- 🔥 TAMBAHAN: INFO ADMIN YANG INPUT 🔥 -->
+              <div class="text-muted mb-2" style="font-size: 0.65rem;">
+                <i class="fas fa-user-edit me-1"></i> 
+                {{ r.admin ? r.admin.split('@')[0] : 'Sistem Lama' }}
+              </div>
+              
               <!-- INFO SELISIH KHUSUS CEK RANDOM -->
               <div v-if="r.tipe === 'CEK_RANDOM'" class="mb-2 mt-1 d-flex align-items-center gap-1">
                 <span class="small text-muted fw-bold" style="font-size: 0.7rem;">Selisih Stok :</span>

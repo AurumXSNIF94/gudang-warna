@@ -1,6 +1,8 @@
 import { ref } from 'vue'
 import { ref as dbRef, onValue, update, get } from 'firebase/database'
 import { db } from '../firebase'
+// 🔥 TAMBAHAN: Import data user yang lagi login
+import { user } from './useAuth'
 
 export const dbStok = ref([])
 export const itemVelocity = ref({})
@@ -48,7 +50,7 @@ export function useStok() {
     }
   }
 
-  // 🔥 PERUBAHAN: refreshData SEKARANG PUNYA FITUR OFFLINE CACHE 🔥
+  // 🔥 FITUR OFFLINE CACHE 🔥
   const refreshData = () => {
     if (isListening) return
     isListening = true
@@ -216,6 +218,7 @@ export function useStok() {
     updates[`stok_benang/${idUnik}/bloks`] = Object.keys(bloks).length > 0 ? bloks : null
     updates[`stok_benang/${idUnik}/tglUpdate`] = now.toISOString()
     
+    // 🔥 TAMBAHAN ADMIN DI SINI 🔥
     updates[`riwayat_transaksi/${idUnik}/${trxId}`] = {
       trxId,
       qty: qty, 
@@ -223,7 +226,8 @@ export function useStok() {
       tanggal: now.toISOString(),
       tipe,
       blok: lokasiBaru || "", 
-      keterangan: ket
+      keterangan: ket,
+      admin: user.value?.email || 'Unknown' 
     }
     
     await update(dbRef(db), updates)
@@ -255,16 +259,19 @@ export function useStok() {
     updates[`stok_benang/${idUnik}/bloks`] = Object.keys(bloks).length > 0 ? bloks : null
     updates[`stok_benang/${idUnik}/tglUpdate`] = now.toISOString()
 
+    // 🔥 TAMBAHAN ADMIN DI SINI 🔥
     updates[`riwayat_transaksi/${idUnik}/${trxOut}`] = {
       trxId: trxOut, qty: qty, stokAkhir: item.stok,
       tanggal: now.toISOString(), tipe: 'MUTASI_KELUAR',
-      blok: asal || "Tanpa Lokasi", keterangan: `MUTASI KE ${tujuan || 'TANPA LOKASI'}`
+      blok: asal || "Tanpa Lokasi", keterangan: `MUTASI KE ${tujuan || 'TANPA LOKASI'}`,
+      admin: user.value?.email || 'Unknown' 
     }
     
     updates[`riwayat_transaksi/${idUnik}/${trxIn}`] = {
       trxId: trxIn, qty: qty, stokAkhir: item.stok,
       tanggal: new Date(now.getTime() + 1000).toISOString(), tipe: 'MUTASI_MASUK',
-      blok: tujuan || "Tanpa Lokasi", keterangan: `DARI ${asal || 'TANPA LOKASI'}`
+      blok: tujuan || "Tanpa Lokasi", keterangan: `DARI ${asal || 'TANPA LOKASI'}`,
+      admin: user.value?.email || 'Unknown' 
     }
 
     await update(dbRef(db), updates)
@@ -287,6 +294,7 @@ export function useStok() {
 
     const updates = {}
     
+    // 🔥 TAMBAHAN ADMIN DI SINI 🔥
     updates[`riwayat_transaksi/${idUnik}/${trxId}`] = {
       trxId,
       qty: qtyRandom, 
@@ -294,7 +302,8 @@ export function useStok() {
       tanggal: nowIso, 
       tipe: 'CEK_RANDOM', 
       blok: blokNama, 
-      keterangan: ket || "Pengecekan Stok Acak"
+      keterangan: ket || "Pengecekan Stok Acak",
+      admin: user.value?.email || 'Unknown' 
     }
     
     await update(dbRef(db), updates)

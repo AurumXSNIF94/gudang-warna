@@ -29,7 +29,6 @@
                 <label class="fw-bold section-label text-primary m-0">
                   <span class="step-num bg-primary">1</span> PASTE DATA DARI EXCEL ERP (2 Kolom)
                 </label>
-                <!-- 🔥 INPUT TANGGAL DI SINI 🔥 -->
                 <div class="d-flex align-items-center gap-2">
                   <label class="small fw-bold text-muted m-0">Tanggal Penyesuaian:</label>
                   <input type="datetime-local" class="form-control form-control-sm fw-bold border-primary-subtle" 
@@ -37,14 +36,15 @@
                          v-model="tanggalOpname">
                 </div>
               </div>
+              <!-- 🔥 v-model ditambahkan biar otomatis ke-trigger saat dipaste atau diedit manual 🔥 -->
               <textarea
                 class="form-control custom-textarea font-monospace"
                 rows="3"
+                v-model="rawPasteText"
                 placeholder="Format Excel: [Kode ERP] [Total Qty di ERP]"
-                @paste="handlePaste"
               ></textarea>
               <div class="form-text small fw-medium mt-2" style="color: var(--text-muted)">
-                <i class="fas fa-info-circle me-1"></i> Blok 2 kolom di Excel ERP (Kode ERP & Qty), lalu tekan CTRL+V di sini.
+                <i class="fas fa-info-circle me-1"></i> Blok 2 kolom di Excel ERP (Kode ERP & Qty), lalu tekan CTRL+V di sini. Data akan otomatis dihitung ke stok tanggal yang dipilih.
               </div>
             </div>
 
@@ -72,7 +72,15 @@
                     </tr>
                   </thead>
                   <tbody>
-                    <template v-if="rows.length">
+                    <template v-if="loadingHistory">
+                      <tr>
+                        <td colspan="6" class="text-center py-5">
+                          <div class="spinner-border text-primary"></div>
+                          <div class="mt-2 small fw-bold text-muted">Menarik Riwayat Masa Lalu...</div>
+                        </td>
+                      </tr>
+                    </template>
+                    <template v-else-if="rows.length">
                       <tr v-for="(row, idx) in rows" :key="idx" :class="!row.itemId ? 'row-warning' : getSelisih(row) !== 0 ? 'row-danger' : ''">
                         <td class="text-center fw-bold text-muted">{{ idx + 1 }}</td>
                         
@@ -139,7 +147,7 @@
           <div class="d-flex w-100 gap-2">
             <button class="btn btn-light-action fw-bold px-4" @click="$emit('close')">Tutup</button>
             <button class="btn btn-primary fw-bold flex-grow-1 shadow-sm"
-                    :disabled="!rows.length || submitting || errorCount === 0"
+                    :disabled="!rows.length || submitting || errorCount === 0 || loadingHistory"
                     @click="sesuaikanKeErp">
               <i v-if="submitting" class="fas fa-circle-notch fa-spin me-2"></i>
               <i v-else class="fas fa-sync-alt me-2"></i>
@@ -154,23 +162,40 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
-import { ref as dbRef, update } from 'firebase/database'
+// 🔥 Import tambahan: onMounted, watch, dan get
+import { ref, computed, onMounted, watch } from 'vue'
+import { ref as dbRef, update, get } from 'firebase/database'
 import { db } from '../../firebase'
 import { dbStok, useStok } from '../../composables/useStok'
 
 const emit = defineEmits(['close'])
-const { refreshData } = useStok()
+// 🔥 Tambahkan jalankanAudit untuk memperbaiki stok pasca sinkronisasi masa lalu
+const { refreshData, jalankanAudit } = useStok()
 
 const submitting = ref(false)
 const rows = ref([])
+const rawPasteText = ref('')
+const allHistories = ref({})
+const loadingHistory = ref(false)
 
-// Setup Tanggal Default ke waktu lokal saat ini
 const getWaktuLokal = () => {
   const tzOffset = (new Date()).getTimezoneOffset() * 60000
   return (new Date(Date.now() - tzOffset)).toISOString().slice(0, 16)
 }
 const tanggalOpname = ref(getWaktuLokal())
+
+// Tarik semua riwayat transaksi ke memori saat modal dibuka biar kalkulasi tanggal secepat kilat
+onMounted(async () => {
+  loadingHistory.value = true
+  try {
+    const snap = await get(dbRef(db, 'riwayat_transaksi'))
+    allHistories.value = snap.val() || {}
+  } catch (error) {
+    console.error("Gagal menarik riwayat:", error)
+  } finally {
+    loadingHistory.value = false
+  }
+})
 
 const fmt = n => Number(n || 0).toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
@@ -201,12 +226,17 @@ const totalSelisih = computed(() => {
   return rows.value.reduce((sum, r) => sum + getSelisih(r), 0)
 })
 
-const handlePaste = (e) => {
-  e.preventDefault()
-  const pasted = (e.clipboardData || window.clipboardData).getData('text')
-  rows.value = []
+// 🔥 LOGIKA BARU: Cari stok tepat di detik tanggalOpname 🔥
+const processData = () => {
+  if (!rawPasteText.value.trim()) {
+    rows.value = []
+    return
+  }
 
-  pasted.split(/\r\n|\n|\r/).forEach(line => {
+  const targetTime = new Date(tanggalOpname.value).getTime()
+  const tempRows = []
+
+  rawPasteText.value.split(/\r\n|\n|\r/).forEach(line => {
     if (!line.trim()) return
     let cols = line.split('\t')
     if (cols.length === 1) cols = line.split(',')
@@ -220,22 +250,46 @@ const handlePaste = (e) => {
     const qtyErp = parseFloat(cleanQty)
 
     const item = dbStok.value.find(i => (i.kodeErp || '').toUpperCase() === rawKey.toUpperCase())
+    let stokAppTarget = 0
 
-    rows.value.push({
+    if (item) {
+      const logsObj = allHistories.value[item.idUnik] || {}
+      const logs = Object.values(logsObj)
+
+      // Cari semua log yang terjadi sebelum atau tepat pada tanggal yang dipilih
+      const pastLogs = logs.filter(l => new Date(l.tanggal).getTime() <= targetTime)
+      
+      if (pastLogs.length > 0) {
+        // Urutkan dari yang terlama ke terbaru, lalu ambil stokAkhir dari log paling ujung (terbaru di masa lalu itu)
+        pastLogs.sort((a, b) => new Date(a.tanggal) - new Date(b.tanggal))
+        stokAppTarget = parseFloat(pastLogs[pastLogs.length - 1].stokAkhir) || 0
+      } else {
+        // Kalau belum ada transaksi sama sekali sebelum tanggal itu, pakai stok awal
+        stokAppTarget = parseFloat(item.stokAwal) || 0
+      }
+    }
+
+    tempRows.push({
       kodeErp: rawKey,
       itemId: item ? item.idUnik : '',
       nama: item ? item.nama : '',
       warna: item ? item.warna : '',
-      stokApp: item ? parseFloat(item.stok) || 0 : 0,
+      stokApp: stokAppTarget,
       stokErp: isNaN(qtyErp) ? 0 : qtyErp
     })
   })
+
+  rows.value = tempRows
 }
+
+// Pantau perubahan pada text paste dan juga perubahan pada tanggal!
+watch([rawPasteText, tanggalOpname], () => {
+  processData()
+})
 
 const exportExcel = () => {
   if (!rows.value.length) return
   
-  // Ambil tanggal dari picker untuk ditaruh di laporan Excel
   const tglReport = new Date(tanggalOpname.value)
   
   const dataToExport = [
@@ -277,7 +331,7 @@ const sesuaikanKeErp = async () => {
 
   const confirm = await window.Swal.fire({
     title: `Sinkronkan ${validToSync.length} Item?`,
-    html: `Stok aplikasi akan ditimpa (di-opname otomatis) mengikuti angka ERP pada tanggal yang dipilih.`,
+    html: `Stok aplikasi akan ditimpa (di-opname otomatis) mengikuti angka ERP pada tanggal yang dipilih.<br><br><b class='text-danger'>Sistem akan menjalankan audit ulang setelah proses ini selesai.</b>`,
     icon: 'warning',
     showCancelButton: true,
     confirmButtonColor: '#3b82f6',
@@ -289,7 +343,6 @@ const sesuaikanKeErp = async () => {
   try {
     const updates = {}
     
-    // Ambil base time dari input tanggal
     let baseTimeObj = new Date(tanggalOpname.value)
     if (isNaN(baseTimeObj.getTime())) baseTimeObj = new Date()
     const baseTime = baseTimeObj.getTime()
@@ -300,7 +353,6 @@ const sesuaikanKeErp = async () => {
 
       const qtyErpTarget = parseFloat(row.stokErp)
       
-      // Bikin interval tiap transaksi selisih 1 detik biar nggak numpuk dan urut riwayatnya
       const rowIsoDate = new Date(baseTime + (i * 1000)).toISOString()
       const trxId = 'BCH_ERP_' + (baseTime + (i * 1000))
 
@@ -320,6 +372,10 @@ const sesuaikanKeErp = async () => {
     })
 
     await update(dbRef(db), updates)
+    
+    // 🔥 PENTING: Jalankan Audit untuk mengkalkulasi ulang stok dari tanggal opname sampai hari ini!
+    await jalankanAudit()
+
     window.Swal.fire({ icon: 'success', title: 'Aplikasi Sudah Sinkron dengan ERP!', timer: 1500, showConfirmButton: false })
     refreshData()
     emit('close')
